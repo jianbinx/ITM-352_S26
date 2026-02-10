@@ -1,6 +1,6 @@
-url = input("Enter a FullURL: ")
+url = input("Enter a full URL: ")
 
-cleaned_url = url.replace("http://", "")
+cleaned_url = url.replace("https://", "")
 
 print("Cleaned URL:", cleaned_url)
 
@@ -10,5 +10,8 @@ domain = parts[1]
 print("Domain:", domain)
 
 TLD = parts[2]
-TLD_cleaned = TLD.strip("/")
-print("Top-Level Domain (TLD):", TLD_cleaned)
+
+# We might get a trailing / character, so we need to remove it.
+#TLD_clean = TLD.strip("/")
+TLD_clean = TLD.replace("/", "")
+print("Top-Level Domain:", TLD_clean)
