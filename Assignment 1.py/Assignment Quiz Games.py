@@ -4,9 +4,9 @@ def normalize_answer(ans):
 
 questions = [
     {
-        "question": "Which of the following are programming languages?",
-        "options": ["A) Python", "B) HTML", "C) Java", "D) CSS"],
-        "answers": {"A", "C"}
+        "question": "Is minecraft a goated game?",
+        "options": ["A) Yes", "B) The Best", "C) Nah", "D) Worst"],
+        "answers": {"A", "B"}
     },
     {
         "question": "Select all prime numbers.",
