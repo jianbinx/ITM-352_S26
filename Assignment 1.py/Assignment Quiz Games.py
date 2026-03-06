@@ -20,6 +20,24 @@ questions = [
     }
 ]
 
+# Dictionary to store user high scores
+user_scores = {}
+
+# Function to get the grand champion (user with highest score)
+def get_grand_champion(scores):
+    if not scores:
+        return None, 0
+    champion = max(scores, key=scores.get)
+    return champion, scores[champion]
+
+# User login
+username = input("Enter your username: ").strip()
+print(f"Welcome, {username}!")
+
+# Retrieve previous high score or set to 0
+high_score = user_scores.get(username, 0)
+print(f"Your current high score: {high_score}")
+
 score = 0
 # Initial score
 
