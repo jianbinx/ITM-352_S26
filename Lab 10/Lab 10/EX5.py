@@ -13,3 +13,5 @@ print(df_homes.head())
 df_big_properties = df_homes[df_homes["units"] >= 500]
 df_big_properties = df_big_properties.drop(columns=["id",  "easement"])
 print(df_big_properties.head(10))
+
+#convert columns to appropriate data types
