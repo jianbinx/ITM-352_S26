@@ -50,3 +50,4 @@ try:
     plt.show()
 except Exception as e:
     print(f"Could not create histogram: {e}")
+

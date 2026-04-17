@@ -36,7 +36,6 @@ plt.show()
 
 # --- HISTOGRAM FROM TRIP MILES DATA ---
 
-# Load trip miles data from JSON file
 try:
     with open("/Users/diuleilomo/Documents/GitHub/ITM-352_S26/Lab 14/Trips from area 8.json") as f:
         trips = json.load(f)
@@ -50,3 +49,33 @@ try:
     plt.show()
 except Exception as e:
     print(f"Could not create histogram: {e}")
+
+# --- SECOND HISTOGRAM: PAYMENT METHOD vs SUM OF TIPS ---
+
+try:
+    # Drop rows with NA values for 'payment_type' or 'tips'
+    filtered_trips = [
+        trip for trip in trips
+        if trip.get("payment_type") not in [None, "", "NA"] and trip.get("tips") not in [None, "", "NA"]
+    ]
+    # Aggregate sum of tips by payment method
+    tip_sums = {}
+    for trip in filtered_trips:
+        payment = str(trip["payment_type"])
+        try:
+            tip = float(trip["tips"])
+        except (ValueError, TypeError):
+            continue
+        tip_sums[payment] = tip_sums.get(payment, 0) + tip
+
+    # Prepare data for bar plot
+    payment_methods = list(tip_sums.keys())
+    total_tips = [tip_sums[pm] for pm in payment_methods]
+
+    plt.bar(payment_methods, total_tips, color='orange', edgecolor='black')
+    plt.title("Total Tips by Payment Method")
+    plt.xlabel("Payment Method")
+    plt.ylabel("Total Tips")
+    plt.show()
+except Exception as e:
+    print(f"Could not create payment method histogram: {e}")
