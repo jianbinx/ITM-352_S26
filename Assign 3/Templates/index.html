@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quiz Game</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f8f8f8; text-align: center; }
+        .container { margin-top: 100px; background: #fff; padding: 40px; border-radius: 8px; display: inline-block; box-shadow: 0 0 10px #ccc; }
+        button { padding: 10px 30px; font-size: 18px; border-radius: 5px; border: none; background: #007bff; color: #fff; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to the Quiz Game!</h1>
+        <form action="{{ url_for('start') }}" method="post">
+            <button type="submit">Start Quiz</button>
+        </form>
+    </div>
+</body>
+</html>
+<form action="{{ url_for('start') }}" method="post">
+    <label for="difficulty">Select Difficulty:</label>
+    <select name="difficulty" id="difficulty" required>
+        <option value="Easy">Easy</option>
+        <option value="Medium">Medium</option>
+        <option value="Hard">Hard</option>
+    </select>
+    <button type="submit">Start Quiz</button>
+</form>

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quiz Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f8f8f8; text-align: center; }
+        .container { margin-top: 100px; background: #fff; padding: 40px; border-radius: 8px; display: inline-block; box-shadow: 0 0 10px #ccc; }
+        .score { font-size: 2em; color: #007bff; margin: 20px 0; }
+        a, button { padding: 10px 30px; font-size: 18px; border-radius: 5px; border: none; background: #007bff; color: #fff; cursor: pointer; text-decoration: none; }
+        a:hover, button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Quiz Complete!</h1>
+        <div class="score">Your score: {{ score }} / {{ total }}</div>
+        <a href="{{ url_for('index') }}">Try Again</a>
+    </div>
+</body>
+</html>

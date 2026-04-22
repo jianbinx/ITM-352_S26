@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quiz Game</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .feedback { font-weight: bold; margin: 10px 0; }
+        .correct { color: green; }
+        .incorrect { color: red; }
+    </style>
+</head>
+<body>
+    <h2>Question {{ current }} of {{ total }}</h2>
+    <form method="post">
+        <p>{{ question.question }}</p>
+        {% for option in question.options %}
+            <input type="radio" name="answer" value="{{ option }}" required> {{ option }}<br>
+        {% endfor %}
+        <button type="submit">Submit</button>
+    </form>
+    <p>Score: {{ score }}</p>
+    {% if feedback %}
+        <div class="feedback {% if 'Correct' in feedback %}correct{% else %}incorrect{% endif %}">{{ feedback }}</div>
+    {% endif %}
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+          {% for message in messages %}
+            <li style="color:red;">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+</body>
+</html>
+<script>
+let timeLeft = 15; // seconds per question
+function countdown() {
+    if (timeLeft <= 0) {
+        document.getElementById("quizForm").submit();
+    } else {
+        document.getElementById("timer").innerHTML = timeLeft + " seconds left";
+        timeLeft -= 1;
+        setTimeout(countdown, 1000);
+    }
+}
+window.onload = countdown;
+</script>
+<form method="post" id="quizForm">
+    <div id="timer" style="font-weight:bold; color:red;"></div>
+    <!-- ... rest of your form ... -->
+</form>
