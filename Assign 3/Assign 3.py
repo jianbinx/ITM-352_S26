@@ -4,7 +4,7 @@ import random
 import os
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key"  # Replace with a secure key in production
+app.secret_key = "TTT SAHUR"  # Replace with a secure key in production
 
 # Load questions from JSON file
 def load_questions():
@@ -53,9 +53,9 @@ def quiz():
             if difficulty == "Easy":
                 score += 1
             elif difficulty == "Medium":
-                score += 2
+                score += 1
             elif difficulty == "Hard":
-                score += 3
+                score += 1
             feedback = "Correct!"
         else:
             feedback = f"Incorrect. The correct answer was: {correct}"
