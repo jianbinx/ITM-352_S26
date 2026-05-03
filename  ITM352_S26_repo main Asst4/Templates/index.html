@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>My Portfolio & Watchlist</h1>
+        
+        {# Calculate the total portfolio value dynamically #}
+        {% set total_value = namespace(value=0) %}
+        {% for item in portfolio_items %}
+            {% if item.crypto.price and item.amount_owned %}
+                {% set total_value.value = total_value.value + (item.crypto.price * item.amount_owned) %}
+            {% endif %}
+        {% endfor %}
+        
+        <h2>Total Value: <span id="total-portfolio-value" style="color: #28a745;">${{ "%.2f"|format(total_value.value) }}</span></h2>
+    </div>
+    
+    {% if portfolio_items %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Symbol</th>
+                    <th>Amount Owned</th>
+                    <th>Price (USD)</th>
+                    <th>Holding Value</th>
+                    <th>Target Price</th>
+                    <th>24h Change</th>
+                    <th>Market Cap</th>
+                    <th>Last Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in portfolio_items %}
+                    <tr>
+                        <td>{{ item.crypto.name }}</td>
+                        <td><strong>{{ item.crypto.symbol }}</strong></td>
+                        <td>{{ item.amount_owned }}</td>
+                        <td id="price-{{ item.id }}">${{ "%.2f"|format(item.crypto.price) if item.crypto.price else 'N/A' }}</td>
+                        <td><strong id="holding-{{ item.id }}">${{ "%.2f"|format(item.amount_owned * item.crypto.price) if item.crypto.price and item.amount_owned else '0.00' }}</strong></td>
+                        <td>${{ "%.2f"|format(item.target_price) if item.target_price else 'None' }}</td>
+                        <td id="change-{{ item.id }}" {% if item.crypto.change_24h and item.crypto.change_24h > 0 %}style="color: green;"{% elif item.crypto.change_24h and item.crypto.change_24h < 0 %}style="color: red;"{% else %}style="color: inherit;"{% endif %}>
+                            {{ "%.2f"|format(item.crypto.change_24h) if item.crypto.change_24h else '0.00' }}%
+                        </td>
+                        <td id="mcap-{{ item.id }}">${{ "{:,.0f}".format(item.crypto.market_cap) if item.crypto.market_cap else 'N/A' }}</td>
+                        <td id="updated-{{ item.id }}">{{ item.crypto.last_updated.strftime('%Y-%m-%d %H:%M:%S') if item.crypto.last_updated else 'N/A' }}</td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button type="button" onclick="openChartModal('{{ item.crypto.name|lower }}', '{{ item.crypto.symbol }}')" style="background-color: #17a2b8; padding: 0.25rem 0.5rem; font-size: 0.875rem;">Chart</button>
+                                <form method="POST" action="{{ url_for('delete_portfolio_item', item_id=item.id) }}" style="margin: 0;">
+                                    <button type="submit" style="background-color: #dc3545; padding: 0.25rem 0.5rem; font-size: 0.875rem;">Remove</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No cryptocurrencies are currently being tracked.</p>
+    {% endif %}
+
+    <hr style="margin: 2rem 0; border: 0; border-top: 1px solid #ddd;">
+    
+    <h3>Add to Watchlist / Portfolio</h3>
+    <form method="POST" action="{{ url_for('add_portfolio_item') }}" style="max-width: 400px;">
+        <div class="form-group">
+            <label for="coin_id">Coin ID (e.g., bitcoin, ethereum):</label>
+            <input type="text" id="coin_id" name="coin_id" placeholder="bitcoin" required>
+        </div>
+        <div class="form-group">
+            <label for="amount">Amount Owned (Enter 0 for watchlist only):</label>
+            <input type="number" step="any" id="amount" name="amount" min="0" value="0" required>
+        </div>
+        <div class="form-group">
+            <label for="target_price">Target Price Alert (Optional):</label>
+            <input type="number" step="any" id="target_price" name="target_price" placeholder="e.g. 75000">
+        </div>
+        <button type="submit">Add Coin</button>
+    </form>
+
+    <hr style="margin: 2rem 0; border: 0; border-top: 1px solid #ddd;">
+    
+    <h3>Smart Alerts Log</h3>
+    {% if alerts %}
+        <ul style="background-color: #f8f9fa; padding: 1rem 2rem; border-radius: 5px; border: 1px solid #e9ecef;">
+        {% for alert in alerts %}
+            <li style="margin-bottom: 0.5rem;"><strong>{{ alert.timestamp }}</strong>: {{ alert.message }}</li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p style="color: #6c757d;">No alerts triggered yet. Set a target price for a coin to get notified here!</p>
+    {% endif %}
+
+    <hr style="margin: 2rem 0; border: 0; border-top: 1px solid #ddd;">
+
+    <h3>24h Performance Leaderboard</h3>
+    <div style="display: flex; justify-content: space-between; gap: 2rem;">
+        <div style="flex: 1;">
+            <h4>Top Gainers</h4>
+            <ul style="list-style-type: none; padding: 0;">
+                {# Filter for items with a positive change and sort them descending, take top 3 #}
+                {% set gainers = portfolio_items | rejectattr('crypto.change_24h', 'none') | selectattr('crypto.change_24h', '>', 0) | sort(attribute='crypto.change_24h', reverse=true) %}
+                {% for item in gainers[:3] %}
+                    <li style="padding: 0.5rem; background-color: #d4edda; margin-bottom: 0.5rem; border-radius: 4px;">
+                        <strong>{{ item.crypto.symbol }}</strong>: <span style="color: green;">+{{ "%.2f"|format(item.crypto.change_24h) }}%</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div style="flex: 1;">
+            <h4>Top Losers</h4>
+            <ul style="list-style-type: none; padding: 0;">
+                {# Filter for items with a negative change and sort them ascending, take top 3 #}
+                {% set losers = portfolio_items | rejectattr('crypto.change_24h', 'none') | selectattr('crypto.change_24h', '<', 0) | sort(attribute='crypto.change_24h') %}
+                {% for item in losers[:3] %}
+                    <li style="padding: 0.5rem; background-color: #f8d7da; margin-bottom: 0.5rem; border-radius: 4px;">
+                        <strong>{{ item.crypto.symbol }}</strong>: <span style="color: red;">{{ "%.2f"|format(item.crypto.change_24h) }}%</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Chart Modal -->
+    <div id="chartModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 2rem; border-radius: 8px; width: 80%; max-width: 800px; position: relative;">
+            <span onclick="closeChartModal()" style="position: absolute; top: 10px; right: 20px; font-size: 24px; cursor: pointer;">&times;</span>
+            <h3 id="chartTitle" style="margin-top: 0;">Price History</h3>
+            <div id="widgetContainer"></div>
+        </div>
+    </div>
+
+    <script src="https://widgets.coingecko.com/coingecko-coin-price-chart-widget.js"></script>
+    <script>
+        function fetchLatestPrices() {
+            fetch('/api/portfolio_data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) return; // User isn't logged in, do nothing
+                    
+                    // Update the total portfolio value at the top
+                    document.getElementById('total-portfolio-value').innerText = '$' + data.total_value.toFixed(2);
+
+                    // Loop through each coin in the user's portfolio
+                    data.portfolio_items.forEach(item => {
+                        // Safely target the HTML elements
+                        const priceEl = document.getElementById('price-' + item.item_id);
+                        const holdingEl = document.getElementById('holding-' + item.item_id);
+                        const changeEl = document.getElementById('change-' + item.item_id);
+                        const mcapEl = document.getElementById('mcap-' + item.item_id);
+                        const updatedEl = document.getElementById('updated-' + item.item_id);
+
+                        // Update data if the coin has a price from the backend
+                        if (item.price !== null) {
+                            if (priceEl) priceEl.innerText = '$' + item.price.toFixed(2);
+                            if (holdingEl) holdingEl.innerText = '$' + item.holding_value.toFixed(2);
+                            
+                            if (changeEl && item.change_24h !== null) {
+                                changeEl.innerText = item.change_24h.toFixed(2) + '%';
+                                changeEl.style.color = item.change_24h > 0 ? 'green' : (item.change_24h < 0 ? 'red' : 'inherit');
+                            }
+                            
+                            if (mcapEl && item.market_cap !== null) {
+                                mcapEl.innerText = '$' + item.market_cap.toLocaleString('en-US');
+                            }
+                            
+                            if (updatedEl && item.last_updated) {
+                                updatedEl.innerText = item.last_updated.replace('T', ' ').substring(0, 19);
+                            }
+                        }
+                    });
+                })
+                .catch(err => console.error('Error fetching live prices:', err));
+        }
+        // Auto-refresh the data every 10 seconds (10000 milliseconds)
+        setInterval(fetchLatestPrices, 10000);
+
+        // --- Coin Search Functionality ---
+        const searchInput = document.getElementById('coin_id');
+        const searchResultsContainer = document.createElement('div');
+        searchResultsContainer.id = 'search-results';
+        searchResultsContainer.style.border = '1px solid #ccc';
+        searchResultsContainer.style.maxHeight = '150px';
+        searchResultsContainer.style.overflowY = 'auto';
+        searchResultsContainer.style.display = 'none';
+        searchInput.parentNode.insertBefore(searchResultsContainer, searchInput.nextSibling);
+
+        let searchTimeout;
+
+        searchInput.addEventListener('keyup', () => {
+            clearTimeout(searchTimeout);
+            const query = searchInput.value.trim();
+
+            if (query.length < 2) {
+                searchResultsContainer.style.display = 'none';
+                return;
+            }
+
+            // Debounce the search to avoid spamming the API
+            searchTimeout = setTimeout(() => {
+                fetch(`/api/search_coins?query=${query}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        searchResultsContainer.innerHTML = '';
+                        if (data && data.length > 0) {
+                            data.slice(0, 10).forEach(coin => { // Show top 10 results
+                                const resultItem = document.createElement('div');
+                                resultItem.innerHTML = `<img src="${coin.thumb}" width="16" height="16" style="vertical-align: middle; margin-right: 8px;"> <strong>${coin.name}</strong> (${coin.symbol})`;
+                                resultItem.style.padding = '8px';
+                                resultItem.style.cursor = 'pointer';
+                                resultItem.addEventListener('mouseover', () => { resultItem.style.backgroundColor = '#f0f0f0'; });
+                                resultItem.addEventListener('mouseout', () => { resultItem.style.backgroundColor = 'white'; });
+                                resultItem.addEventListener('click', () => {
+                                    searchInput.value = coin.id; // Use the coin 'id' for the form
+                                    searchResultsContainer.style.display = 'none';
+                                });
+                                searchResultsContainer.appendChild(resultItem);
+                            });
+                            searchResultsContainer.style.display = 'block';
+                        } else { searchResultsContainer.style.display = 'none'; }
+                    }).catch(err => console.error('Error searching coins:', err));
+            }, 300);
+        });
+
+        // Hide search results if user clicks elsewhere on the page
+        document.addEventListener('click', (event) => {
+            if (!searchInput.contains(event.target) && !searchResultsContainer.contains(event.target)) {
+                searchResultsContainer.style.display = 'none';
+            }
+        });
+
+        // --- Historical Trend Chart Functionality ---
+        function openChartModal(coinId, symbol) {
+            document.getElementById('chartModal').style.display = 'flex';
+            document.getElementById('chartTitle').innerText = `${symbol} Price History`;
+            
+            const container = document.getElementById('widgetContainer');
+            container.innerHTML = `<coingecko-coin-price-chart-widget coin-id="${coinId}" currency="usd" height="300" locale="en"></coingecko-coin-price-chart-widget>`;
+        }
+
+        function closeChartModal() { 
+            document.getElementById('widgetContainer').innerHTML = ''; // Clean up widget when closed
+            document.getElementById('chartModal').style.display = 'none'; 
+        }
+    </script>
+{% endblock %}
