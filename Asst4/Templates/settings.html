@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>Account Settings</h1>
+    
+    <div style="background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); max-width: 600px;">
+        <h3>Auto-Trading Configuration</h3>
+        <p style="color: #555; line-height: 1.5;">
+            To enable the Smart Alert auto-trading feature, you must provide your Exchange API Secret Key. 
+            <strong>Your key will be securely encrypted</strong> using Fernet cryptography before it is saved to the database.
+        </p>
+        
+        <div style="margin: 1.5rem 0; padding: 1rem; border-radius: 4px; background-color: {{ '#d4edda' if has_api_secret else '#f8d7da' }}; border: 1px solid {{ '#c3e6cb' if has_api_secret else '#f5c6cb' }};">
+            <strong>Status:</strong> 
+            {% if has_api_secret %}
+                <span style="color: #155724;">✅ API Credentials are securely configured.</span>
+            {% else %}
+                <span style="color: #721c24;">❌ No API Credentials configured.</span>
+            {% endif %}
+        </div>
+
+        <form method="POST" action="{{ url_for('settings') }}">
+            <div class="form-group">
+                <label for="api_key">Binance Testnet Public API Key:</label>
+                <input type="text" id="api_key" name="api_key" value="{{ api_key or '' }}" placeholder="Enter your public API key">
+            </div>
+            <div class="form-group">
+                <label for="api_secret">Exchange API Secret Key:</label>
+                <input type="password" id="api_secret" name="api_secret" placeholder="Enter your secret key here...">
+                <small style="color: #888; display: block; margin-top: 0.5rem;">For security reasons, we will never display your saved key.</small>
+            </div>
+            <button type="submit" style="background-color: #28a745;">{% if has_api_secret %}Update{% else %}Save{% endif %} Credentials</button>
+        </form>
+    </div>
+{% endblock %}

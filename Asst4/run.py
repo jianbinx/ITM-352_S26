@@ -1,5 +1,5 @@
 from __init__ import app, db
-from model import Crypto
+from models import Crypto
 
 # Starts the project
 if __name__ == '__main__':

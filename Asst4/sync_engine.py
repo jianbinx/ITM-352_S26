@@ -4,10 +4,9 @@ import json
 import os
 import ccxt
 from datetime import datetime, timezone
-from __init__ import app, db
-from model import Crypto, PortfolioItem
-from security import decrypt_data
-
+from Asst4 import app, db
+from Asst4.model import Crypto, PortfolioItem
+from Asst4.security import decrypt_data
 
 def log_alert(user_id, message):
     """Writes an alert to the user's specific JSON log file."""

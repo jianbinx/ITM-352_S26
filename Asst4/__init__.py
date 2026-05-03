@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from config import Config
+from .config import Config  # <-- FIXED: use relative import
 
 # Initializes the app
 app = Flask(__name__)
@@ -10,5 +10,5 @@ app.config.from_object(Config)
 db = SQLAlchemy(app)
 
 # Import routes after app initialization to avoid circular imports
-import routes
-import model
+import Asst4.routes
+import Asst4.model
