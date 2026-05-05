@@ -8,13 +8,88 @@ from __init__ import app, db
 from models import Crypto, User, PortfolioItem
 from security import encrypt_data, decrypt_data
 import ccxt
+from cachetools import cached, TTLCache
+
+
+@app.route('/recommendations')
+def recommendations():
+    try:
+        headers = {
+            "accept": "application/json",
+            "x-cg-demo-api-key": os.environ.get("COINGECKO_API_KEY", "")
+        }
+        response = requests.get('https://api.coingecko.com/api/v3/search/trending', headers=headers, timeout=5)
+        data = response.json()
+        trending_coins = [item['item'] for item in data.get('coins', [])]
+    except Exception as e:
+        print(f"Error fetching trending coins: {e}")
+        trending_coins = []
+        
+    return render_template('recommendations.html', trending_coins=trending_coins)
+
+# --- Finnhub News Sentiment Setup ---
+@cached(cache=TTLCache(maxsize=20, ttl=600))
+def get_finnhub_sentiment(symbol):
+    # IMPORTANT: Replace with your Finnhub API Key
+    finnhub_key = "d7sj7b9r01qorsviuvs0d7sj7b9r01qorsviuvsgRE"
+    
+    if finnhub_key == "d7sj7b9r01qorsviuvs0d7sj7b9r01qorsviuvsgRE":
+        print("Finnhub API key not set. Returning default neutral score.")
+        return 50
+        
+    url = f"https://finnhub.io/api/v1/news-sentiment?symbol={symbol}&token={finnhub_key}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        
+        if 'sentiment' in data and 'bullishPercent' in data['sentiment']:
+            # Bullish percent is returned as a float like 0.85
+            score = int(data['sentiment']['bullishPercent'] * 100)
+            return score
+        return 50 # Default neutral if no data found
+    except Exception as e:
+        print(f"Finnhub API Error: {e}")
+        return 50
 
 # Website pages
 @app.route('/')
 def index():
+    # Stocks via Finnhub (Financial News Sentiment)
+    nvda_score = get_finnhub_sentiment("NVDA")
+    tsla_score = get_finnhub_sentiment("TSLA")
+    
+    recommendations = []
+    
+    sources = [
+        ("Nvidia", "NVDA", nvda_score, "Finnhub Financial News"), 
+        ("Tesla", "TSLA", tsla_score, "Finnhub Financial News")
+    ]
+    
+    for name, symbol, score, source in sources:
+        if score >= 65:
+            verdict = "Strong Buy"
+            reason = f"High positive sentiment from {source} ({score}/100)."
+        elif score >= 55:
+            verdict = "Buy"
+            reason = f"Slightly positive leaning sentiment from {source} ({score}/100)."
+        elif score < 45:
+            verdict = "Sell"
+            reason = f"Negative public sentiment detected by {source} ({score}/100)."
+        else:
+            verdict = "Hold"
+            reason = f"Neutral public sentiment based on {source} ({score}/100)."
+            
+        recommendations.append({
+            "name": name, 
+            "symbol": symbol, 
+            "sentiment_score": score, 
+            "verdict": verdict, 
+            "reason": reason
+        })
+
     # Show a public homepage for anonymous visitors.
     if 'user_id' not in session:
-        return render_template('index.html', portfolio_items=[], alerts=[])
+        return render_template('index.html', portfolio_items=[], alerts=[], recommendations=recommendations)
 
     # Fetch the portfolio items for the logged-in user
     user_id = session['user_id']
@@ -31,7 +106,7 @@ def index():
                 pass
 
     # Render the index.html template, passing in our crypto data
-    return render_template('index.html', portfolio_items=portfolio_items, alerts=alerts)
+    return render_template('index.html', portfolio_items=portfolio_items, alerts=alerts, recommendations=recommendations)
 
 @app.route('/add_portfolio_item', methods=['POST'])
 def add_portfolio_item():
@@ -133,7 +208,11 @@ def search_coins():
     try:
         # Call CoinGecko's search API
         url = f"https://api.coingecko.com/api/v3/search?query={query}"
-        response = requests.get(url, timeout=10)
+        headers = {
+            "accept": "application/json",
+            "x-cg-demo-api-key": os.environ.get("COINGECKO_API_KEY", "")
+        }
+        response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status() # Raise an exception for bad status codes
         data = response.json()
         

@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>Crypto Recommendations</h1>
+    <p>These recommendations are based on public opinion from CoinGecko's top trending searches.</p>
+
+    {% if trending_coins %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Coin</th>
+                    <th>Symbol</th>
+                    <th>Market Cap Rank</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for coin in trending_coins %}
+                <tr>
+                    <td>
+                        <img src="{{ coin.thumb }}" alt="{{ coin.name }} logo" width="20" style="vertical-align: middle; margin-right: 5px;">
+                        <strong>{{ coin.name }}</strong>
+                    </td>
+                    <td>{{ coin.symbol }}</td>
+                    <td>{{ coin.market_cap_rank if coin.market_cap_rank else 'N/A' }}</td>
+                    <td>
+                        <a href="https://www.coingecko.com/en/coins/{{ coin.id }}" target="_blank">View on CoinGecko</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Could not fetch trending coins at this moment. Please check back later.</p>
+    {% endif %}
+{% endblock %}

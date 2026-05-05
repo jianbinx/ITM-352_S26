@@ -30,6 +30,7 @@
         </div>
         <nav>
             <a href="{{ url_for('index') }}">Home</a>
+            <a href="{{ url_for('recommendations') }}">Recommendations</a>
             {% if session.get('user_id') %}
                 <a href="{{ url_for('settings') }}">Settings</a>
                 <span style="margin-left: 1rem; color: #aaa;">Welcome, {{ session.get('username') }}!</span>

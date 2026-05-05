@@ -94,7 +94,11 @@ def sync_crypto_prices():
                     
                     # Fetch live prices from CoinGecko
                     url = f"https://api.coingecko.com/api/v3/simple/price?ids={crypto_ids}&vs_currencies=usd&include_market_cap=true&include_24hr_change=true"
-                    response = requests.get(url, timeout=10)
+                    headers = {
+                        "accept": "application/json",
+                        "x-cg-demo-api-key": os.environ.get("COINGECKO_API_KEY", "")
+                    }
+                    response = requests.get(url, headers=headers, timeout=10)
                     data = response.json()
                     
                     # Update prices in the database
