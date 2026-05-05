@@ -7,6 +7,10 @@
 </div>
 
 <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div style="margin-bottom: 20px;">
+        <input type="text" id="poll-search" placeholder="Search polls... (e.g. Bitcoin, Solana)" style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 1rem;">
+    </div>
+
     <div id="loading-polls" style="text-align: center; padding: 2rem; color: #666;">
         <p>Loading global prediction markets...</p>
     </div>
@@ -17,22 +21,45 @@
 </div>
 
 <script>
+    let allPollsData = [];
+
     document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('poll-search');
+
         fetch('/api/all_manifold_polls')
             .then(response => response.json())
             .then(data => {
-                const loading = document.getElementById('loading-polls');
-                const grid = document.getElementById('polls-grid');
-                
-                loading.style.display = 'none';
-                grid.style.display = 'grid';
-                
-                if (data.length === 0) {
-                    grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #888;">No polls available at the moment.</p>';
-                    return;
-                }
-                
-                data.forEach(poll => {
+                allPollsData = data;
+                renderPolls(allPollsData);
+            })
+            .catch(err => {
+                console.error('Error fetching polls:', err);
+                document.getElementById('loading-polls').innerHTML = '<p style="color: red;">Failed to load polls. Please try again later.</p>';
+            });
+
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredPolls = allPollsData.filter(poll => 
+                poll.question.toLowerCase().includes(searchTerm)
+            );
+            renderPolls(filteredPolls);
+        });
+    });
+
+    function renderPolls(pollsToRender) {
+        const loading = document.getElementById('loading-polls');
+        const grid = document.getElementById('polls-grid');
+        
+        loading.style.display = 'none';
+        grid.style.display = 'grid';
+        grid.innerHTML = '';
+        
+        if (pollsToRender.length === 0) {
+            grid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #888;">No polls match your search.</p>';
+            return;
+        }
+        
+        pollsToRender.forEach(poll => {
                     const card = document.createElement('div');
                     card.style.cssText = 'border: 1px solid #eee; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; justify-content: space-between; background-color: #fafafa;';
                     
@@ -58,11 +85,6 @@
                     `;
                     grid.appendChild(card);
                 });
-            })
-            .catch(err => {
-                console.error('Error fetching polls:', err);
-                document.getElementById('loading-polls').innerHTML = '<p style="color: red;">Failed to load polls. Please try again later.</p>';
-            });
-    });
+    }
 </script>
 {% endblock %}

@@ -99,42 +99,23 @@ def logout():
 def get_manifold_polls_sidebar():
     """Fetches a limited set (10) for the sidebar dashboard"""
     try:
-        url = "https://api.manifold.markets/v0/search-markets?term=Crypto&limit=10&sort=score&filter=open"
+        # Increased limit to ensure we have enough polls after filtering out political ones
+        url = "https://api.manifold.markets/v0/search-markets?term=Crypto&limit=30&sort=score&filter=open"
         response = requests.get(url, timeout=10)
         data = response.json()
         
         polls = []
+        political_keywords = ['trump', 'biden', 'election', 'harris', 'democrat', 'republican', 'politics', 'president', 'senate', 'house', 'congress', 'voter', 'kamala', 'gop']
+        
         for market in data:
             if market.get('outcomeType') != 'BINARY': continue
             prob = market.get('probability')
             if prob is None: continue
 
-            polls.append({
-                'question': market.get('question'),
-                'yes_price': float(prob),
-                'no_price': 1.0 - float(prob),
-                'id': market.get('slug'),
-                'url': market.get('url'),
-                'volume': f"${int(market.get('volume', 0)):,}"
-            })
-        return jsonify(polls)
-    except Exception as e:
-        print(f"Sidebar Fetch Error: {e}")
-        return jsonify([])
-
-@app.route('/api/all_manifold_polls')
-def get_all_manifold_polls():
-    """Fetches a large list of crypto markets for the dedicated 'All Polls' page"""
-    try:
-        url = "https://api.manifold.markets/v0/search-markets?term=Crypto&limit=100&sort=score&filter=open"
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        
-        polls = []
-        for market in data:
-            if market.get('outcomeType') != 'BINARY': continue
-            prob = market.get('probability')
-            if prob is None: continue
+            # Filter out questions containing political keywords
+            question_lower = market.get('question', '').lower()
+            if any(keyword in question_lower for keyword in political_keywords):
+                continue
 
             polls.append({
                 'question': market.get('question'),
@@ -145,6 +126,50 @@ def get_all_manifold_polls():
                 'volume': f"${int(market.get('volume', 0)):,}"
             })
             
+            # Stop once we have 10 clean, non-political crypto polls
+            if len(polls) >= 10:
+                break
+                
+        return jsonify(polls)
+    except Exception as e:
+        print(f"Sidebar Fetch Error: {e}")
+        return jsonify([])
+
+@app.route('/api/all_manifold_polls')
+def get_all_manifold_polls():
+    """Fetches a large list of crypto markets for the dedicated 'All Polls' page"""
+    try:
+        # Increase limit to fetch a large pool to filter from
+        url = "https://api.manifold.markets/v0/search-markets?term=Crypto&limit=200&sort=score&filter=open"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        polls = []
+        political_keywords = ['trump', 'biden', 'election', 'harris', 'democrat', 'republican', 'politics', 'president', 'senate', 'house', 'congress', 'voter', 'kamala', 'gop']
+        
+        for market in data:
+            if market.get('outcomeType') != 'BINARY': continue
+            prob = market.get('probability')
+            if prob is None: continue
+
+            # Filter out questions containing political keywords
+            question_lower = market.get('question', '').lower()
+            if any(keyword in question_lower for keyword in political_keywords):
+                continue
+
+            polls.append({
+                'question': market.get('question'),
+                'yes_price': float(prob),
+                'no_price': 1.0 - float(prob),
+                'id': market.get('slug'),
+                'url': market.get('url'),
+                'volume': f"${int(market.get('volume', 0)):,}"
+            })
+            
+            # Stop once we have up to 100 clean polls for the grid
+            if len(polls) >= 100:
+                break
+                
         return jsonify(polls)
     except Exception as e:
         print(f"All Polls Fetch Error: {e}")
@@ -826,6 +851,20 @@ def settings():
                            user=user,
                            has_api_secret=bool(user.encrypted_api_secret), 
                            api_key=decrypted_api_key)
+
+@app.route('/delete_api_keys', methods=['POST'])
+def delete_api_keys():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    user = User.query.get(session['user_id'])
+    if user:
+        user.encrypted_api_key = None
+        user.encrypted_api_secret = None
+        db.session.commit()
+        flash("API keys deleted successfully.", "success")
+        
+    return redirect(url_for('settings'))
 
 @app.route('/api/save_settings', methods=['POST'])
 def save_settings():

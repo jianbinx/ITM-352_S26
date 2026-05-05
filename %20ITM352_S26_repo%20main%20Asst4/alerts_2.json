@@ -1,5 +1,30 @@
 [
     {
+        "timestamp": "2026-05-05 11:06:04 UTC",
+        "user_id": 2,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.111729"
+    },
+    {
+        "timestamp": "2026-05-05 11:05:44 UTC",
+        "user_id": 2,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.111695 | \ud83e\udd16 AUTO-TRADE: Successfully executed SELL order for 10.0 DOGE on Binance US. Order ID: 485836107"
+    },
+    {
+        "timestamp": "2026-05-05 11:05:33 UTC",
+        "user_id": 2,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.11! Current price: $0.111695 | \ud83e\udd16 AUTO-TRADE: Successfully executed SELL order for 10.0 DOGE on Binance US. Order ID: 485836099"
+    },
+    {
+        "timestamp": "2026-05-05 11:02:40 UTC",
+        "user_id": 2,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.11! Current price: $0.111701 | \ud83e\udd16 AUTO-TRADE: Failed to decrypt API credentials."
+    },
+    {
+        "timestamp": "2026-05-05 11:00:01 UTC",
+        "user_id": 2,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.111667 | \ud83e\udd16 AUTO-TRADE: Failed to decrypt API credentials."
+    },
+    {
         "timestamp": "2026-05-05 08:49:10 UTC",
         "user_id": 2,
         "message": "\ud83c\udfaf WATCHLIST TARGET HIT: bitcoin reached your target of $7000.0! Current price: $80762.0"
