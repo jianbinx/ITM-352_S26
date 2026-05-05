@@ -15,7 +15,7 @@ def send_email_alert(to_email, subject, body):
     """Sends an email notification via SMTP."""
     if not Config.MAIL_USERNAME or not Config.MAIL_PASSWORD:
         print("Email not sent: MAIL_USERNAME or MAIL_PASSWORD not configured.")
-        return False
+        return False, "MAIL_USERNAME or MAIL_PASSWORD is not configured in your .env file."
         
     msg = MIMEText(body)
     msg['Subject'] = subject
@@ -29,10 +29,10 @@ def send_email_alert(to_email, subject, body):
         server.login(Config.MAIL_USERNAME, Config.MAIL_PASSWORD)
         server.send_message(msg)
         server.quit()
-        return True
+        return True, "Email sent successfully."
     except Exception as e:
         print(f"Failed to send email to {to_email}: {e}")
-        return False
+        return False, f"SMTP Error: {str(e)}"
 
 
 def log_alert(user_id, message):

@@ -4,11 +4,12 @@ A comprehensive, Flask-based cryptocurrency portfolio tracker, watchlist, and au
 
 ## Features
 - **Live Portfolio & Watchlist:** Track your crypto holdings and prospective coins with real-time price, 24h change, and market cap updates.
-- **Smart Auto-Trading:** Configure "Auto-Buy" (buy the dip) and "Auto-Sell" (take profit) targets. The background engine will execute live trades via Binance US when targets are hit.
+- **Smart Auto-Trading:** Configure "Auto-Buy" (buy the dip) and "Auto-Sell" (take profit) targets with customizable trade amounts. The background engine will execute live trades via Binance US when targets are hit.
+- **Quick Trade UI:** Execute manual trades instantly with a built-in live USD cost calculator.
 - **Military-Grade Security:** User API keys and secrets are encrypted using AES-128 (Fernet) before being saved to the database.
-- **Smart Alerts:** Receive audio chimes and automated Email notifications when trades execute or prices hit your targets.
+- **Smart Alerts:** Receive audio chimes and automated email notifications (with built-in test diagnostic tools) when trades execute or prices hit your targets.
 - **Prediction Markets:** Participate in global crypto prediction polls powered by the Manifold Markets API.
-- **Admin Dashboard:** A secure administrative panel to manage registered users.
+- **Admin Dashboard:** A secure administrative panel to view and manage registered users.
 
 ## Installation & Setup
 
@@ -62,7 +63,7 @@ On the very first startup, the system generates a default Admin account:
 1. The app runs a background daemon thread (`sync_engine.py`) alongside the Flask web server.
 2. Every X seconds (configurable in User Settings), it fetches live prices from CoinGecko.
 3. It checks your Portfolio and Watchlist for any items with `auto_trade_enabled=True`.
-4. If a target condition is met, it decrypts your Binance US API keys, executes a Market Order via `ccxt`, updates your database balances, and emails you a success log.
+4. If a target condition is met, it decrypts your Binance US API keys, executes a Market Order for the specified amount via `ccxt` on the **live** exchange, updates your database balances, and emails you a success log.
 
 ## Disclaimer
-This software connects to live financial exchanges. Always test your strategies with small amounts and ensure your API keys are tightly permissioned. The developers assume no responsibility for financial losses incurred while using the auto-trading bots.
+This software connects to live financial exchanges (**Binance US Production, not Sandbox**). Always test your strategies with small amounts and ensure your API keys are tightly permissioned. The developers assume no responsibility for financial losses incurred while using the auto-trading bots.

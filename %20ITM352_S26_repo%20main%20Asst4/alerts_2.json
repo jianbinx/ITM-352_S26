@@ -1,5 +1,15 @@
 [
     {
+        "timestamp": "2026-05-05 11:21:56 UTC",
+        "user_id": 2,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.111497"
+    },
+    {
+        "timestamp": "2026-05-05 11:21:35 UTC",
+        "user_id": 2,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.111497 | \ud83e\udd16 AUTO-TRADE: Successfully executed SELL order for 10.0 DOGE on Binance US. Order ID: 485837565"
+    },
+    {
         "timestamp": "2026-05-05 11:06:04 UTC",
         "user_id": 2,
         "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.111729"

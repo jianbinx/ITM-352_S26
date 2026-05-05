@@ -12,22 +12,24 @@ import hashlib
 
 # --- HELPERS ---
 
-def get_market_recommendations():
-    """Returns a list of mock market recommendations to display on the dashboard."""
-    return [
-        {
-            'name': 'Bitcoin', 'symbol': 'BTC', 'verdict': 'Strong Buy',
-            'sentiment_score': 92, 'reason': 'High institutional adoption and positive ETF inflows.'
-        },
-        {
-            'name': 'Ethereum', 'symbol': 'ETH', 'verdict': 'Buy',
-            'sentiment_score': 85, 'reason': 'Upcoming network upgrades and strong DeFi ecosystem.'
-        },
-        {
-            'name': 'Solana', 'symbol': 'SOL', 'verdict': 'Hold',
-            'sentiment_score': 65, 'reason': 'High throughput but recent network congestion concerns.'
-        }
-    ]
+def get_trending_coins(limit=3):
+    """Returns a list of top trending coins from CoinGecko for the dashboard."""
+    trending = []
+    try:
+        url = "https://api.coingecko.com/api/v3/search/trending"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        for item in data.get('coins', [])[:limit]:
+            coin = item.get('item', {})
+            trending.append({
+                'name': coin.get('name'),
+                'symbol': coin.get('symbol').upper(),
+                'thumb': coin.get('thumb'),
+                'market_cap_rank': coin.get('market_cap_rank')
+            })
+    except Exception as e:
+        print(f"Trending Fetch Error: {e}")
+    return trending
 
 def get_currency_data(currency_code):
     """Returns the symbol and the conversion rate relative to 1 USD"""
@@ -51,7 +53,7 @@ def portfolio_index_view(): # Renamed function to be unique
     curr_data = get_currency_data(config.currency)
     currency_symbol = curr_data['symbol']
     rate = curr_data['rate']
-    recommendations = get_market_recommendations()
+    trending_coins_data = get_trending_coins()
 
     if 'user_id' not in session:
         return render_template('index.html', 
@@ -59,7 +61,7 @@ def portfolio_index_view(): # Renamed function to be unique
                                portfolio_items=[], 
                                watchlist_items=[],
                                alerts=[], 
-                               recommendations=recommendations,
+                               trending_coins=trending_coins_data,
                                settings=config, 
                                currency_symbol=currency_symbol,
                                conversion_rate=rate)
@@ -83,7 +85,7 @@ def portfolio_index_view(): # Renamed function to be unique
                            portfolio_items=portfolio_items, 
                            watchlist_items=watchlist_items,
                            alerts=alerts, 
-                           recommendations=recommendations,
+                           trending_coins=trending_coins_data,
                            settings=config, 
                            currency_symbol=currency_symbol,
                            conversion_rate=rate)
@@ -180,10 +182,10 @@ def all_polls():
     config = Settings.query.first()
     return render_template('all_polls.html', settings=config)
 
-# --- RECOMMENDATIONS ---
+# --- TRENDING COINS ---
 
-@app.route('/recommendations')
-def recommendations():
+@app.route('/trending_coins')
+def trending_coins():
     config = Settings.query.first()
     trending_coins = []
     try:
@@ -202,7 +204,7 @@ def recommendations():
     except Exception as e:
         print(f"Trending Fetch Error: {e}")
         
-    return render_template('recommendations.html', trending_coins=trending_coins, settings=config)
+    return render_template('trending_coins.html', trending_coins=trending_coins, settings=config)
 
 # --- PORTFOLIO MANAGEMENT ---
 
@@ -863,6 +865,26 @@ def delete_api_keys():
         user.encrypted_api_secret = None
         db.session.commit()
         flash("API keys deleted successfully.", "success")
+        
+    return redirect(url_for('settings'))
+
+@app.route('/test_email', methods=['POST'])
+def test_email():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    user = User.query.get(session['user_id'])
+    if not user.email:
+        flash("Please save an email address first.", "error")
+        return redirect(url_for('settings'))
+        
+    from sync_engine import send_email_alert
+    success, error_msg = send_email_alert(user.email, "Test Email from Crypto Dashboard", "If you are reading this, your email configuration is working perfectly!")
+    
+    if success:
+        flash("Test email sent successfully! Please check your inbox (and spam folder).", "success")
+    else:
+        flash(f"Failed to send test email: {error_msg}", "error")
         
     return redirect(url_for('settings'))
 
