@@ -44,6 +44,7 @@ class PortfolioItem(db.Model):
     amount_owned = db.Column(db.Float, default=0.0)
     target_price = db.Column(db.Float, nullable=True)
     auto_trade_enabled = db.Column(db.Boolean, default=False)
+    trade_amount = db.Column(db.Float, default=0.0)
     
     crypto = db.relationship('Crypto')
 

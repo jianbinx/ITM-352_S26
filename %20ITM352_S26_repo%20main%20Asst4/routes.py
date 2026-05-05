@@ -114,6 +114,7 @@ def get_manifold_polls_sidebar():
                 'yes_price': float(prob),
                 'no_price': 1.0 - float(prob),
                 'id': market.get('slug'),
+                'url': market.get('url'),
                 'volume': f"${int(market.get('volume', 0)):,}"
             })
         return jsonify(polls)
@@ -140,6 +141,7 @@ def get_all_manifold_polls():
                 'yes_price': float(prob),
                 'no_price': 1.0 - float(prob),
                 'id': market.get('slug'),
+                'url': market.get('url'),
                 'volume': f"${int(market.get('volume', 0)):,}"
             })
             
@@ -188,7 +190,11 @@ def add_portfolio_item():
     coin_id = request.form.get('coin_id', '').strip().lower()
     amount_str = request.form.get('amount', '0')
     target_str = request.form.get('target_price', '').strip()
+    trade_amount_str = request.form.get('trade_amount', '0')
     auto_trade_enabled = True if request.form.get('auto_trade') == 'on' else False
+
+    try: trade_amount = float(trade_amount_str)
+    except ValueError: trade_amount = 0.0
 
     target_price = None
     if target_str:
@@ -239,13 +245,33 @@ def add_portfolio_item():
         item.amount_owned = amount
         if target_price: item.target_price = target_price
         item.auto_trade_enabled = auto_trade_enabled
+        item.trade_amount = trade_amount
         flash(f'Updated {crypto.name} amount to {amount}.', 'success')
     else:
-        new_item = PortfolioItem(user_id=user_id, crypto_id=crypto.id, amount_owned=amount, target_price=target_price, auto_trade_enabled=auto_trade_enabled)
+        new_item = PortfolioItem(user_id=user_id, crypto_id=crypto.id, amount_owned=amount, target_price=target_price, auto_trade_enabled=auto_trade_enabled, trade_amount=trade_amount)
         db.session.add(new_item)
         flash(f'Added {crypto.name} to your portfolio.', 'success')
         
     db.session.commit()
+    return redirect(url_for('portfolio_index'))
+
+@app.route('/edit_portfolio_item/<int:item_id>', methods=['POST'])
+def edit_portfolio_item(item_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    item = PortfolioItem.query.get(item_id)
+    if item and item.user_id == session['user_id']:
+        target_str = request.form.get('target_price', '').strip()
+        trade_str = request.form.get('trade_amount', '0')
+        item.auto_trade_enabled = True if request.form.get('auto_trade') == 'on' else False
+        
+        try: item.target_price = float(target_str) if target_str else None
+        except ValueError: item.target_price = None
+        
+        try: item.trade_amount = float(trade_str)
+        except ValueError: item.trade_amount = 0.0
+        
+        db.session.commit()
+        flash('Portfolio auto-trade settings updated.', 'success')
     return redirect(url_for('portfolio_index'))
 
 @app.route('/delete_portfolio_item/<int:item_id>', methods=['POST'])
@@ -401,6 +427,25 @@ def add_watchlist_item():
         flash(f'Added {crypto.name} to your watchlist.', 'success')
         
     db.session.commit()
+    return redirect(url_for('portfolio_index'))
+
+@app.route('/edit_watchlist_item/<int:item_id>', methods=['POST'])
+def edit_watchlist_item(item_id):
+    if 'user_id' not in session: return redirect(url_for('login'))
+    item = WatchlistItem.query.get(item_id)
+    if item and item.user_id == session['user_id']:
+        target_str = request.form.get('target_price', '').strip()
+        trade_str = request.form.get('trade_amount', '0')
+        item.auto_trade_enabled = True if request.form.get('auto_trade') == 'on' else False
+        
+        try: item.target_price = float(target_str) if target_str else None
+        except ValueError: item.target_price = None
+        
+        try: item.trade_amount = float(trade_str)
+        except ValueError: item.trade_amount = 0.0
+        
+        db.session.commit()
+        flash('Watchlist auto-buy settings updated.', 'success')
     return redirect(url_for('portfolio_index'))
 
 @app.route('/delete_watchlist_item/<int:item_id>', methods=['POST'])
@@ -567,11 +612,36 @@ def cast_poll_vote():
 
 @app.route('/predictive_market/<symbol>')
 def predictive_market(symbol):
-    symbol = symbol.upper()
-    crypto = Crypto.query.filter_by(symbol=symbol).first()
+    query = symbol.strip().lower()
+    
+    # Automatically resolve the exact CoinGecko ID and Symbol
+    try:
+        url = f"https://api.coingecko.com/api/v3/search?query={query}"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        if data.get('coins') and len(data['coins']) > 0:
+            resolved_id = data['coins'][0]['id']
+            resolved_symbol = data['coins'][0]['symbol'].upper()
+        else:
+            resolved_id = query
+            resolved_symbol = query.upper()
+    except Exception as e:
+        resolved_id = query
+        resolved_symbol = query.upper()
+        print(f"Search API error: {e}")
+
+    # Check if we already have this coin by symbol or name
+    crypto = Crypto.query.filter(Crypto.symbol.ilike(resolved_symbol)).first()
     if not crypto:
-        crypto = Crypto(name=symbol.lower(), symbol=symbol)
+        crypto = Crypto.query.filter(Crypto.name.ilike(resolved_id)).first()
+        
+    if not crypto:
+        crypto = Crypto(name=resolved_id, symbol=resolved_symbol)
         db.session.add(crypto)
+        db.session.commit()
+    elif crypto.name != resolved_id:
+        # Auto-heal the database name if a legacy broken coin exists
+        crypto.name = resolved_id
         db.session.commit()
 
     all_polls = Poll.query.order_by(Poll.created_at.desc()).all() 

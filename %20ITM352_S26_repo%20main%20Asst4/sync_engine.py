@@ -129,10 +129,17 @@ def sync_crypto_prices():
                             
                             # Trigger Auto-Trading if user has configured an API Key and actually owns some
                             if item.auto_trade_enabled and item.amount_owned > 0 and item.user.encrypted_api_secret:
-                                success, trade_msg = execute_auto_trade(item.user, item.crypto.symbol, item.amount_owned, "SELL")
-                                alert_msg += f" | 🤖 AUTO-TRADE: {trade_msg}"
-                                if success:
-                                    item.amount_owned = 0.0  # Reset amount since it was sold
+                                # Safely default to selling all if no specific amount was configured prior to this update
+                                sell_amt = item.trade_amount if (item.trade_amount and item.trade_amount > 0) else item.amount_owned
+                                if item.amount_owned >= sell_amt:
+                                    success, trade_msg = execute_auto_trade(item.user, item.crypto.symbol, sell_amt, "SELL")
+                                    alert_msg += f" | 🤖 AUTO-TRADE: {trade_msg}"
+                                    if success:
+                                        item.amount_owned -= sell_amt  # Subtract sold amount
+                                        item.auto_trade_enabled = False # Turn off auto-trade after execution
+                                else:
+                                    alert_msg += f" | 🤖 AUTO-TRADE FAILED: Insufficient portfolio holding to sell {sell_amt} coins."
+                                    item.auto_trade_enabled = False
                                     
                             log_alert(item.user_id, alert_msg)
                             item.target_price = None  # Clear the target so it doesn't spam

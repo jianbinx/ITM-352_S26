@@ -32,9 +32,20 @@ if __name__ == '__main__':
         except Exception:
             db.session.rollback() # Ignored if the column already exists
             
+        try:
+            db.session.execute(text('ALTER TABLE portfolio_item ADD COLUMN trade_amount FLOAT DEFAULT 0.0'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback() # Ignored if the column already exists
+            
         # Safely add Watchlist Auto-Buy columns to the existing database
         try:
             db.session.execute(text('ALTER TABLE watchlist_item ADD COLUMN auto_trade_enabled BOOLEAN DEFAULT 0'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback() # Ignored if the columns already exist
+            
+        try:
             db.session.execute(text('ALTER TABLE watchlist_item ADD COLUMN trade_amount FLOAT DEFAULT 0.0'))
             db.session.commit()
         except Exception:
