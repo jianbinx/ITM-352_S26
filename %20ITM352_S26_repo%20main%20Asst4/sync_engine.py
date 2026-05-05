@@ -3,10 +3,36 @@ import requests
 import json
 import os
 import ccxt
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime, timezone
 from __init__ import app, db
-from models import Crypto, PortfolioItem, WatchlistItem
+from models import Crypto, PortfolioItem, WatchlistItem, User
 from security import decrypt_data
+from config import Config
+
+def send_email_alert(to_email, subject, body):
+    """Sends an email notification via SMTP."""
+    if not Config.MAIL_USERNAME or not Config.MAIL_PASSWORD:
+        print("Email not sent: MAIL_USERNAME or MAIL_PASSWORD not configured.")
+        return False
+        
+    msg = MIMEText(body)
+    msg['Subject'] = subject
+    msg['From'] = Config.MAIL_USERNAME
+    msg['To'] = to_email
+    
+    try:
+        server = smtplib.SMTP(Config.MAIL_SERVER, Config.MAIL_PORT)
+        if Config.MAIL_USE_TLS:
+            server.starttls()
+        server.login(Config.MAIL_USERNAME, Config.MAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Failed to send email to {to_email}: {e}")
+        return False
 
 
 def log_alert(user_id, message):
@@ -30,6 +56,12 @@ def log_alert(user_id, message):
     
     with open(alerts_file, 'w') as f:
         json.dump(alerts, f, indent=4)
+        
+    # Send an email alert if the user has an email configured
+    with app.app_context():
+        user = User.query.get(user_id)
+        if user and user.email:
+            send_email_alert(user.email, "Crypto Dashboard Alert", message)
 
 def execute_auto_trade(user, crypto_symbol, amount, trade_type="SELL"):
     """
@@ -39,16 +71,17 @@ def execute_auto_trade(user, crypto_symbol, amount, trade_type="SELL"):
         return False, "No API key configured."
         
     try:
-        # Decrypt the military-grade encrypted API key
+        # Decrypt the military-grade encrypted API credentials
+        api_key = decrypt_data(user.encrypted_api_key)
         api_secret = decrypt_data(user.encrypted_api_secret)
         
-        if not api_secret:
-            return False, "Failed to decrypt API key."
+        if not api_key or not api_secret:
+            return False, "Failed to decrypt API credentials."
             
         # Initialize the Binance US exchange connection using ccxt
         # Note: Exchanges require both an API Key and Secret. 
         exchange = ccxt.binanceus({
-            'apiKey': user.api_key,                 # Pulled dynamically from the database
+            'apiKey': api_key,                      # Decrypted API key
             'secret': api_secret,                   # Our decrypted military-grade secret
             'enableRateLimit': True,
         })

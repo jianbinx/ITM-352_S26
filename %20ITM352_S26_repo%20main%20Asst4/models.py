@@ -24,8 +24,9 @@ class User(db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     
-    api_key = db.Column(db.String(256), nullable=True)
+    encrypted_api_key = db.Column(db.String(256), nullable=True)
     encrypted_api_secret = db.Column(db.String(256), nullable=True)
+    email = db.Column(db.String(120), nullable=True)
     sound_alerts_enabled = db.Column(db.Boolean, default=True) 
     
     is_admin = db.Column(db.Boolean, default=False)

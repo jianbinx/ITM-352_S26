@@ -18,6 +18,20 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         
+        # Safely add the email column to the existing database
+        try:
+            db.session.execute(text('ALTER TABLE user ADD COLUMN email VARCHAR(120)'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback() # Ignored if the column already exists
+
+        # Safely add the encrypted_api_key column
+        try:
+            db.session.execute(text('ALTER TABLE user ADD COLUMN encrypted_api_key VARCHAR(256)'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback() # Ignored if the column already exists
+
         # Safely add the new is_admin column to the existing database
         try:
             db.session.execute(text('ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0'))

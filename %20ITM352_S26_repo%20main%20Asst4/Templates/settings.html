@@ -73,6 +73,10 @@
 
         <form method="POST" action="{{ url_for('settings') }}" style="display: flex; flex-direction: column; gap: 15px;">
             <div>
+                <label for="email" style="display: block; font-weight: bold; margin-bottom: 5px;">Email Address for Alerts</label>
+                <input type="email" id="email" name="email" value="{{ user.email or '' }}" placeholder="you@email.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            <div>
                 <label for="api_key" style="display: block; font-weight: bold; margin-bottom: 5px;">Binance Public API Key</label>
                 <input type="text" id="api_key" name="api_key" value="{{ api_key or '' }}" placeholder="Enter your public API key" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
             </div>

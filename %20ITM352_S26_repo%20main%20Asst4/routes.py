@@ -295,7 +295,7 @@ def manual_trade():
         return redirect(url_for('login'))
 
     user = User.query.get(session['user_id'])
-    if not user.api_key or not user.encrypted_api_secret:
+    if not user.encrypted_api_key or not user.encrypted_api_secret:
         flash('API keys not configured. Please add them in Settings.', 'error')
         return redirect(url_for('settings'))
 
@@ -327,9 +327,10 @@ def manual_trade():
         print(f"Search API error: {e}")
 
     try:
+        api_key = decrypt_data(user.encrypted_api_key)
         api_secret = decrypt_data(user.encrypted_api_secret)
         exchange = ccxt.binanceus({
-            'apiKey': user.api_key,
+            'apiKey': api_key,
             'secret': api_secret,
             'enableRateLimit': True,
         })
@@ -739,12 +740,13 @@ def import_exchange():
         return redirect(url_for('login'))
 
     user = User.query.get(session['user_id'])
-    if not user.api_key or not user.encrypted_api_secret:
+    if not user.encrypted_api_key or not user.encrypted_api_secret:
         return redirect(url_for('settings'))
 
+    api_key = decrypt_data(user.encrypted_api_key)
     api_secret = decrypt_data(user.encrypted_api_secret)
     try:
-        exchange = ccxt.binanceus({'apiKey': user.api_key, 'secret': api_secret})
+        exchange = ccxt.binanceus({'apiKey': api_key, 'secret': api_secret})
         balances = exchange.fetch_balance()
         totals = balances.get('total', {})
             
@@ -806,19 +808,24 @@ def settings():
     if request.method == 'POST':
         api_key = request.form.get('api_key', '').strip()
         api_secret = request.form.get('api_secret', '').strip()
+        email = request.form.get('email', '').strip()
+        
+        user.email = email if email else None
+        
         if api_key: 
-            user.api_key = api_key
+            user.encrypted_api_key = encrypt_data(api_key)
         if api_secret: 
             user.encrypted_api_secret = encrypt_data(api_secret)
         db.session.commit()
         flash("Settings updated successfully!", "success")
 
     config = Settings.query.first() or Settings()
+    decrypted_api_key = decrypt_data(user.encrypted_api_key) if user.encrypted_api_key else ''
     return render_template('settings.html', 
                            settings=config,
                            user=user,
                            has_api_secret=bool(user.encrypted_api_secret), 
-                           api_key=user.api_key)
+                           api_key=decrypted_api_key)
 
 @app.route('/api/save_settings', methods=['POST'])
 def save_settings():
