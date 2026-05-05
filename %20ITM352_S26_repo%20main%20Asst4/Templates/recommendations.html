@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .rec-card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 25px;
+        margin-top: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .rec-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    .rec-table th, .rec-table td {
+        padding: 15px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .rec-table th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.85em;
+        letter-spacing: 0.5px;
+        opacity: 0.8;
+    }
+    .rec-table tr:last-child td {
+        border-bottom: none;
+    }
+    .rec-table tr:hover {
+        background-color: rgba(128, 128, 128, 0.05);
+    }
+    .action-btn {
+        display: inline-block;
+        padding: 8px 16px;
+        background-color: #3182ce;
+        color: white !important;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 0.9em;
+        font-weight: bold;
+        transition: background-color 0.2s;
+    }
+    .action-btn:hover {
+        background-color: #2b6cb0;
+    }
+    .rank-badge {
+        background-color: rgba(49, 130, 206, 0.1);
+        color: #3182ce;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.9em;
+        font-weight: bold;
+    }
+</style>
+
+<div class="rec-card">
+    <h2 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
+        🔥 Trending Recommendations
+    </h2>
+    <p style="opacity: 0.7; margin-bottom: 25px;">These recommendations are based on public opinion from CoinGecko's top trending searches.</p>
+
+    {% if trending_coins %}
+    <div style="overflow-x: auto;">
+        <table class="rec-table">
+            <thead>
+                <tr>
+                    <th>Coin</th>
+                    <th>Symbol</th>
+                    <th>Market Cap Rank</th>
+                    <th style="text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for coin in trending_coins %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <img src="{{ coin.thumb }}" alt="{{ coin.name }} logo" width="28" style="border-radius: 50%;">
+                            <strong style="font-size: 1.1em;">{{ coin.name }}</strong>
+                        </div>
+                    </td>
+                    <td><span style="opacity: 0.8; font-weight: 500;">{{ coin.symbol }}</span></td>
+                    <td>
+                        {% if coin.market_cap_rank %}
+                            <span class="rank-badge">#{{ coin.market_cap_rank }}</span>
+                        {% else %}
+                            <span style="opacity: 0.5;">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <a href="https://www.coingecko.com/en/coins/{{ coin.id }}" target="_blank" class="action-btn">View Coin</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 40px 20px; background-color: rgba(128, 128, 128, 0.05); border-radius: 8px;">
+        <p style="margin: 0; font-size: 1.1em; opacity: 0.8;">Could not fetch trending coins at this moment. Please check back later.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

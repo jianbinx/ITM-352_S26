@@ -1,0 +1,463 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <audio id="alert-sound" preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+    </audio>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <h1 style="margin: 0; color: #333;">Dashboard Overview</h1>
+            {% if current_user and current_user.is_admin %}
+                <a href="{{ url_for('admin_dashboard') }}" style="background-color: #343a40; color: white; padding: 6px 12px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 0.9rem;">⚙️ Admin Panel</a>
+            {% endif %}
+        </div>
+        
+        {# Calculate the total portfolio value and count items dynamically #}
+        {% set total_value = namespace(value=0) %}
+        {% set counts = namespace(portfolio=0, watchlist=0) %}
+        {% for item in portfolio_items %}
+            {% if item.amount_owned and item.amount_owned > 0 %}
+                {% set counts.portfolio = counts.portfolio + 1 %}
+                {% if item.crypto.price %}
+                    {% set total_value.value = total_value.value + (item.crypto.price * item.amount_owned) %}
+                {% endif %}
+            {% else %}
+                {% set counts.watchlist = counts.watchlist + 1 %}
+            {% endif %}
+        {% endfor %}
+        
+        <div style="text-align: right;">
+            <span style="font-size: 1.1rem; color: #666;">Total Portfolio Value:</span>
+            <span id="total-portfolio-value" style="font-size: 1.8rem; font-weight: bold; color: #28a745; margin-left: 10px;">
+                {{ currency_symbol }}{{ "%.2f"|format(total_value.value * conversion_rate) }}
+            </span>
+        </div>
+    </div>
+    
+    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 2.5rem; overflow-x: auto;">
+        <h3 style="margin-top: 0; margin-bottom: 1.5rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">My Portfolio</h3>
+        {% if counts.portfolio > 0 %}
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #eee; color: #888; text-transform: uppercase; font-size: 0.85rem;">
+                        <th style="padding: 12px;">Name</th>
+                        <th style="padding: 12px;">Symbol</th>
+                        <th style="padding: 12px;">Holdings</th>
+                        <th style="padding: 12px;">Target (Auto-Sell)</th>
+                        <th style="padding: 12px;">Price ({{ settings.currency }})</th>
+                        <th style="padding: 12px;">24h Change</th>
+                        <th style="padding: 12px;">Market Cap</th>
+                        <th style="padding: 12px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="portfolio-table-body">
+                    {% for item in portfolio_items %}
+                        {% if item.amount_owned and item.amount_owned > 0 %}
+                        <tr style="border-bottom: 1px solid #f4f4f4;">
+                            <td style="padding: 12px;">{{ item.crypto.name }}</td>
+                            <td style="padding: 12px;"><strong>{{ item.crypto.symbol }}</strong></td>
+                            <td style="padding: 12px;">{{ item.amount_owned }}</td>
+                            
+                            <td style="padding: 12px;">
+                                {% if item.target_price %}
+                                    {{ currency_symbol }}{{ item.target_price }}
+                                    {% if item.auto_trade_enabled %}
+                                        <span title="Auto-Sell Enabled" style="font-size: 0.75rem; background-color: #28a745; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 5px; font-weight: bold;">🤖 ON</span>
+                                    {% endif %}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            
+                            <td style="padding: 12px;" id="price-{{ item.id }}">
+                                {{ currency_symbol }}{{ "%.2f"|format(item.crypto.price * conversion_rate) if item.crypto.price else 'N/A' }}
+                            </td>
+                            
+                            <td style="padding: 12px;" id="change-{{ item.id }}" {% if item.crypto.change_24h and item.crypto.change_24h > 0 %}style="color: green;"{% elif item.crypto.change_24h and item.crypto.change_24h < 0 %}style="color: red;"{% endif %}>
+                                {{ "%.2f"|format(item.crypto.change_24h) if item.crypto.change_24h else '0.00' }}%
+                            </td>
+
+                            <td style="padding: 12px;" id="mcap-{{ item.id }}">
+                                {{ currency_symbol }}{{ "{:,.0f}".format(item.crypto.market_cap * conversion_rate) if item.crypto.market_cap else 'N/A' }}
+                            </td>
+                            
+                            <td style="padding: 12px;">
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button type="button" onclick="openChartModal('{{ item.crypto.name|lower }}', '{{ item.crypto.symbol }}')" 
+                                            style="background-color: #17a2b8; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Chart</button>
+                                    <form method="POST" action="{{ url_for('delete_portfolio_item', item_id=item.id) }}" style="margin: 0;">
+                                        <button type="submit" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Remove</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %} {# Added missing endif here #}
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="text-align: center; color: #666; padding: 2rem;">No cryptocurrencies are currently being tracked.</p>
+        {% endif %}
+    </div>
+
+    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 2.5rem; overflow-x: auto;">
+        <h3 style="margin-top: 0; margin-bottom: 1.5rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">My Watchlist</h3>
+        {% if watchlist_items|length > 0 %}
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #eee; color: #888; text-transform: uppercase; font-size: 0.85rem;">
+                        <th style="padding: 12px;">Name</th>
+                        <th style="padding: 12px;">Symbol</th>
+                        <th style="padding: 12px;">Target (Auto-Buy)</th>
+                        <th style="padding: 12px;">Price ({{ settings.currency }})</th>
+                        <th style="padding: 12px;">24h Change</th>
+                        <th style="padding: 12px;">Market Cap</th>
+                        <th style="padding: 12px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="watchlist-table-body">
+                    {% for item in watchlist_items %}
+                        <tr style="border-bottom: 1px solid #f4f4f4;">
+                            <td style="padding: 12px;">{{ item.crypto.name }}</td>
+                            <td style="padding: 12px;"><strong>{{ item.crypto.symbol }}</strong></td>
+                            
+                            <td style="padding: 12px;">
+                                {{ currency_symbol }}{{ item.target_price if item.target_price else 'None' }}
+                            </td>
+                            
+                            <td style="padding: 12px;" id="wl-price-{{ item.id }}">
+                                {{ currency_symbol }}{{ "%.2f"|format(item.crypto.price * conversion_rate) if item.crypto.price else 'N/A' }}
+                            </td>
+                            
+                            <td style="padding: 12px;" id="wl-change-{{ item.id }}" {% if item.crypto.change_24h and item.crypto.change_24h > 0 %}style="color: green;"{% elif item.crypto.change_24h and item.crypto.change_24h < 0 %}style="color: red;"{% endif %}>
+                                {{ "%.2f"|format(item.crypto.change_24h) if item.crypto.change_24h else '0.00' }}%
+                            </td>
+
+                            <td style="padding: 12px;" id="wl-mcap-{{ item.id }}">
+                                {{ currency_symbol }}{{ "{:,.0f}".format(item.crypto.market_cap * conversion_rate) if item.crypto.market_cap else 'N/A' }}
+                            </td>
+                            
+                            <td style="padding: 12px;">
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button type="button" onclick="openChartModal('{{ item.crypto.name|lower }}', '{{ item.crypto.symbol }}')" 
+                                            style="background-color: #17a2b8; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Chart</button>
+                                    <form method="POST" action="{{ url_for('delete_watchlist_item', item_id=item.id) }}" style="margin: 0;">
+                                        <button type="submit" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Remove</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="text-align: center; color: #666; padding: 2rem;">Your watchlist is currently empty.</p>
+        {% endif %}
+    </div>
+
+    <div style="background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 2.5rem;">
+        <h3 style="margin-top: 0; margin-bottom: 1.5rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">Add to Portfolio</h3>
+        
+        <form method="POST" action="{{ url_for('add_portfolio_item') }}" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end;">
+            <div style="flex: 2; min-width: 200px; position: relative;">
+                <label for="coin_id" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Coin ID</label>
+                <input type="text" id="coin_id" name="coin_id" class="coin-search-input" placeholder="bitcoin" required
+                       style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="amount" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Amount Owned</label>
+                <input type="number" step="any" id="amount" name="amount" min="0" value="0" required
+                       style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="target_price" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Target Price Alert (USD)</label>
+                <input type="number" step="any" id="target_price" name="target_price" placeholder="e.g. 75000"
+                       style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="flex: 1; min-width: 150px; display: flex; align-items: center; gap: 8px; padding-bottom: 12px;">
+                {% if current_user and current_user.encrypted_api_secret %}
+                    <input type="checkbox" id="auto_trade" name="auto_trade" style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="auto_trade" style="font-weight: bold; font-size: 0.9rem; cursor: pointer; color: #d32f2f;">Enable Auto-Sell 🤖</label>
+                {% else %}
+                    <input type="checkbox" id="auto_trade" disabled style="width: 18px; height: 18px; cursor: not-allowed; opacity: 0.5;">
+                    <label for="auto_trade" style="font-size: 0.85rem; color: #888; font-weight: bold;">
+                        Enable Auto-Sell 🤖 <br>
+                        <a href="{{ url_for('settings') }}" style="color: #dc3545; text-decoration: underline;">Requires API Key</a>
+                    </label>
+                {% endif %}
+            </div>
+            
+            <button type="submit" style="background-color: #28a745; color: white; padding: 13px 30px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s;">
+                Add Coin
+            </button>
+        </form>
+    </div>
+
+    <div style="background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 2.5rem;">
+        <h3 style="margin-top: 0; margin-bottom: 1.5rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">Add to Watchlist</h3>
+        
+        <form method="POST" action="{{ url_for('add_watchlist_item') }}" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end;">
+            <div style="flex: 2; min-width: 200px; position: relative;">
+                <label for="wl_coin_id" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Coin ID</label>
+                <input type="text" id="wl_coin_id" name="coin_id" class="coin-search-input" placeholder="bitcoin" required
+                       style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="wl_target_price" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Target Price Alert (USD)</label>
+                <input type="number" step="any" id="wl_target_price" name="target_price" placeholder="e.g. 75000"
+                       style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="wl_trade_amount" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Amount of Coin to Buy</label>
+                <input type="number" step="any" id="wl_trade_amount" name="trade_amount" placeholder="e.g. 0.5"
+                       style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="flex: 1; min-width: 150px; display: flex; align-items: center; gap: 8px; padding-bottom: 12px;">
+                {% if current_user and current_user.encrypted_api_secret %}
+                    <input type="checkbox" id="wl_auto_trade" name="auto_trade" style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="wl_auto_trade" style="font-weight: bold; font-size: 0.9rem; cursor: pointer; color: #007bff;">Enable Auto-Buy 🤖</label>
+                {% else %}
+                    <input type="checkbox" id="wl_auto_trade" disabled style="width: 18px; height: 18px; cursor: not-allowed; opacity: 0.5;">
+                    <label for="wl_auto_trade" style="font-size: 0.85rem; color: #888; font-weight: bold;">
+                        Enable Auto-Buy 🤖 <br>
+                        <a href="{{ url_for('settings') }}" style="color: #dc3545; text-decoration: underline;">Requires API Key</a>
+                    </label>
+                {% endif %}
+            </div>
+            
+            <button type="submit" style="background-color: #ffc107; color: #333; padding: 13px 30px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s;">
+                Watch Coin
+            </button>
+        </form>
+    </div>
+
+    <div style="background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 2.5rem;">
+        <h3 style="margin-top: 0; margin-bottom: 1.5rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">Quick Trade (Live Exchange)</h3>
+        
+        <form method="POST" action="{{ url_for('manual_trade') }}" style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end;">
+            <div style="flex: 1; min-width: 150px; position: relative;">
+                <label for="trade_coin_id" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Coin ID (e.g., bitcoin)</label>
+                <input type="text" id="trade_coin_id" name="coin_id" class="coin-search-input" placeholder="bitcoin" required
+                       style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="trade_type" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Action</label>
+                <select id="trade_type" name="trade_type" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+                    <option value="BUY">Buy</option>
+                    <option value="SELL">Sell</option>
+                </select>
+            </div>
+            
+            <div style="flex: 1; min-width: 150px;">
+                <label for="trade_amount" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem;">Amount</label>
+                <input type="number" step="any" id="trade_amount" name="amount" placeholder="e.g. 0.5" required
+                       style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+            </div>
+            
+            <button type="submit" style="background-color: #007bff; color: white; padding: 13px 30px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s;">
+                Execute Trade
+            </button>
+        </form>
+    </div>
+
+    <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h3 style="margin-top: 0; margin-bottom: 1.2rem; color: #333;">Smart Alerts Log</h3>
+        <div id="alerts-container" style="display: flex; flex-direction: column; gap: 10px;">
+            {% if alerts %}
+                {% for alert in alerts %}
+                    <div class="alert-item" style="padding: 15px; border-left: 5px solid #ffc107; background: #fffdf0; border-radius: 6px;">
+                        <strong>{{ alert.timestamp }}</strong>: {{ alert.message }}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p id="no-alerts-msg" style="color: #6c757d; font-style: italic;">No alerts triggered yet. Set a target price to get notified!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="chartModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 2rem; border-radius: 12px; width: 90%; max-width: 800px; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <span onclick="closeChartModal()" style="position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #888;">&times;</span>
+            <h3 id="chartTitle" style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">Price History</h3>
+            <div id="widgetContainer" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <script src="https://widgets.coingecko.com/coingecko-coin-price-chart-widget.js"></script>
+    <script>
+        let lastAlertCount = {{ alerts|length }};
+        const conversionRate = {{ conversion_rate }};
+        const currencySymbol = '{{ currency_symbol }}';
+
+        function fetchLatestPrices() {
+            fetch('/api/portfolio_data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) return;
+                    
+                    document.getElementById('total-portfolio-value').innerText = currencySymbol + (data.total_value * conversionRate).toFixed(2);
+
+                    data.portfolio_items.forEach(item => {
+                        const priceEl = document.getElementById('price-' + item.item_id);
+                        const changeEl = document.getElementById('change-' + item.item_id);
+                        const mcapEl = document.getElementById('mcap-' + item.item_id);
+
+                        if (item.price !== null) {
+                            if (priceEl) priceEl.innerText = currencySymbol + (item.price * conversionRate).toFixed(2);
+                            
+                            if (changeEl && item.change_24h !== null) {
+                                changeEl.innerText = item.change_24h.toFixed(2) + '%';
+                                changeEl.style.color = item.change_24h > 0 ? 'green' : (item.change_24h < 0 ? 'red' : 'inherit');
+                            }
+                            if (mcapEl && item.market_cap !== null) {
+                                mcapEl.innerText = currencySymbol + (item.market_cap * conversionRate).toLocaleString('en-US');
+                            }
+                        }
+                    });
+
+                    if (data.alerts && data.alerts.length > lastAlertCount) {
+                        const audio = document.getElementById('alert-sound');
+                        audio.play().catch(e => console.log("Sound autoplay blocked by browser"));
+                        
+                        lastAlertCount = data.alerts.length;
+                        setTimeout(() => { location.reload(); }, 1000);
+                    }
+                })
+                .catch(err => console.error('Error fetching live prices:', err));
+
+        fetch('/api/watchlist_data')
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) return;
+                
+                data.watchlist_items.forEach(item => {
+                    const priceEl = document.getElementById('wl-price-' + item.item_id);
+                    const changeEl = document.getElementById('wl-change-' + item.item_id);
+                    const mcapEl = document.getElementById('wl-mcap-' + item.item_id);
+
+                    if (item.price !== null) {
+                        if (priceEl) priceEl.innerText = currencySymbol + item.price.toFixed(2);
+                        
+                        if (changeEl && item.change_24h !== null) {
+                            changeEl.innerText = item.change_24h.toFixed(2) + '%';
+                            changeEl.style.color = item.change_24h > 0 ? 'green' : (item.change_24h < 0 ? 'red' : 'inherit');
+                        }
+                        if (mcapEl && item.market_cap !== null) {
+                            mcapEl.innerText = currencySymbol + item.market_cap.toLocaleString('en-US');
+                        }
+                    }
+                });
+            })
+            .catch(err => console.error('Error fetching watchlist prices:', err));
+        }
+
+        const refreshInterval = {{ settings.refresh_rate }} * 1000;
+        setInterval(fetchLatestPrices, refreshInterval);
+
+        // Fixed logic for search input class
+        document.querySelectorAll('.coin-search-input').forEach(searchInput => {
+            const searchResultsContainer = document.createElement('div');
+            searchResultsContainer.className = 'search-results';
+            Object.assign(searchResultsContainer.style, {
+                border: '1px solid #ccc', borderRadius: '6px', maxHeight: '200px', 
+                overflowY: 'auto', display: 'none', background: 'white', 
+                position: 'absolute', width: '100%', zIndex: '100', marginTop: '5px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+            });
+            searchInput.parentNode.appendChild(searchResultsContainer);
+
+            let searchTimeout;
+            searchInput.addEventListener('keyup', () => {
+                clearTimeout(searchTimeout);
+                const query = searchInput.value.trim();
+                if (query.length < 2) { searchResultsContainer.style.display = 'none'; return; }
+
+                searchTimeout = setTimeout(() => {
+                    fetch(`/api/search_coins?query=${query}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            searchResultsContainer.innerHTML = '';
+                            if (data && data.length > 0) {
+                                data.slice(0, 10).forEach(coin => {
+                                    const resultItem = document.createElement('div');
+                                    resultItem.innerHTML = `<img src="${coin.thumb}" width="16" height="16" style="vertical-align: middle; margin-right: 8px;"> <strong>${coin.name}</strong> (${coin.symbol})`;
+                                    resultItem.style.padding = '10px';
+                                    resultItem.style.cursor = 'pointer';
+                                    resultItem.style.borderBottom = '1px solid #eee';
+                                    resultItem.addEventListener('click', () => {
+                                        searchInput.value = coin.id;
+                                        searchResultsContainer.style.display = 'none';
+                                    });
+                                    searchResultsContainer.appendChild(resultItem);
+                                });
+                                searchResultsContainer.style.display = 'block';
+                            }
+                        });
+                }, 300);
+            });
+            
+            document.addEventListener('click', (event) => {
+                if (!searchInput.contains(event.target) && !searchResultsContainer.contains(event.target)) {
+                    searchResultsContainer.style.display = 'none';
+                }
+            });
+        });
+
+        // Quick Trade USD Calculator
+        const tradeAmountInput = document.getElementById('trade_amount');
+        const tradeCoinInput = document.getElementById('trade_coin_id');
+        const estCostDisplay = document.getElementById('estimated_usd_cost');
+        let costTimeout;
+
+        function updateEstCost() {
+            clearTimeout(costTimeout);
+            const amt = parseFloat(tradeAmountInput.value) || 0;
+            const coin = tradeCoinInput.value.trim().toLowerCase();
+            
+            if (amt <= 0 || !coin) {
+                estCostDisplay.innerText = "Total: $0.00 USD";
+                estCostDisplay.style.color = "#666";
+                return;
+            }
+
+            costTimeout = setTimeout(() => {
+                fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data[coin] && data[coin].usd) {
+                            const cost = data[coin].usd * amt;
+                            estCostDisplay.innerText = `Total: ~$${cost.toFixed(2)} USD`;
+                            if (cost < 10) {
+                                estCostDisplay.innerText += " (Under $10 Min!)";
+                                estCostDisplay.style.color = "#dc3545";
+                            } else {
+                                estCostDisplay.style.color = "#28a745";
+                            }
+                        }
+                    }).catch(err => console.log(err));
+            }, 500);
+        }
+
+        tradeAmountInput.addEventListener('input', updateEstCost);
+        tradeCoinInput.addEventListener('input', updateEstCost);
+
+        function openChartModal(coinId, symbol) {
+            document.getElementById('chartModal').style.display = 'flex';
+            document.getElementById('chartTitle').innerText = `${symbol.toUpperCase()} Price History`;
+            document.getElementById('widgetContainer').innerHTML = `<coingecko-coin-price-chart-widget coin-id="${coinId}" currency="usd" height="300" locale="en"></coingecko-coin-price-chart-widget>`;
+        }
+
+        function closeChartModal() { 
+            document.getElementById('widgetContainer').innerHTML = '';
+            document.getElementById('chartModal').style.display = 'none'; 
+        }
+    </script>
+{% endblock %}

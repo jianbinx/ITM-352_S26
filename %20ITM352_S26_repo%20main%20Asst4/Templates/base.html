@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Dashboard</title>
+    
+    <style>
+        /* --- THEME LOGIC --- */
+        :root {
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+            --card-bg: #ffffff;
+            --border-color: #ddd;
+        }
+
+        /* This applies if settings.theme is 'dark' */
+        .dark-mode {
+            --bg-color: #1a202c;
+            --text-color: #f7fafc;
+            --card-bg: #2d3748;
+            --border-color: #4a5568;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Navigation Style */
+        nav {
+            background: #2d3748;
+            padding: 1rem;
+            display: flex;
+            gap: 20px;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        /* Ensure cards and containers follow the theme */
+        .container { padding: 20px; }
+        
+        .card, div[style*="background: white"], div[style*="background-color: white"] {
+            background-color: var(--card-bg) !important;
+            color: var(--text-color) !important;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* Adjusting headings for Dark Mode visibility */
+        .dark-mode h1, .dark-mode h2, .dark-mode h3, .dark-mode strong {
+            color: #edf2f7 !important;
+        }
+    </style>
+</head>
+
+<body class="{{ settings.theme if settings else 'light' }}-mode">
+
+    <nav>
+        <a href="{{ url_for('portfolio_index') }}">Dashboard</a>
+        <a href="{{ url_for('predictive_market', symbol='BTC') }}">Prediction Market</a>
+        <a href="{{ url_for('recommendations') }}">Recommendations</a>
+        <a href="{{ url_for('settings') }}">Settings</a>
+        
+        {% if session.get('user_id') %}
+            <span style="color: #a0aec0; margin-left: auto;">Logged in as {{ session.get('username') }}</span>
+            <a href="{{ url_for('logout') }}" style="color: #fc8181;">Logout</a>
+        {% else %}
+            <a href="{{ url_for('login') }}" style="margin-left: auto;">Login</a>
+        {% endif %}
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div style="padding: 10px; margin-bottom: 20px; border-radius: 5px; 
+                          background-color: {{ '#c6f6d5' if category == 'success' else '#fed7d7' }};
+                          color: {{ '#2f855a' if category == 'success' else '#9b2c2c' }};">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+</body>
+</html>

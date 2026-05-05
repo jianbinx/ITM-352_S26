@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+    <h1 style="margin: 0; color: #333;">Admin Dashboard</h1>
+    <p style="color: #666;">Manage platform users and global settings.</p>
+</div>
+
+<div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <h3 style="margin-top: 0; margin-bottom: 1.5rem; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">Registered Users</h3>
+    
+    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+            <tr style="border-bottom: 2px solid #eee; color: #888; text-transform: uppercase; font-size: 0.85rem;">
+                <th style="padding: 12px;">ID</th>
+                <th style="padding: 12px;">Username</th>
+                <th style="padding: 12px;">Role</th>
+                <th style="padding: 12px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr style="border-bottom: 1px solid #f4f4f4;">
+                <td style="padding: 12px;">{{ u.id }}</td>
+                <td style="padding: 12px;"><strong>{{ u.username }}</strong></td>
+                <td style="padding: 12px;">
+                    {% if u.is_admin %}
+                        <span style="background-color: #28a745; color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem;">Admin</span>
+                    {% else %}
+                        <span style="background-color: #6c757d; color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem;">User</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 12px;">
+                    {% if not u.is_admin %}
+                    <form method="POST" action="{{ url_for('delete_user', target_user_id=u.id) }}" style="margin: 0;" onsubmit="return confirm('Are you sure you want to completely delete this user and all their data?');">
+                        <button type="submit" style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Delete User</button>
+                    </form>
+                    {% else %}
+                        <span style="color: #aaa; font-style: italic;">Protected</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
