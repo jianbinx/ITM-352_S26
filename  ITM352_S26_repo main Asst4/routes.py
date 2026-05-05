@@ -20,7 +20,7 @@ def recommendations():
         }
         response = requests.get('https://api.coingecko.com/api/v3/search/trending', headers=headers, timeout=5)
         data = response.json()
-        trending_coins = [item['item'] for item in data.get('coins', [])]
+        trending_coins = sorted([item['item'] for item in data.get('coins', [])], key=lambda x: x.get('score', 0))
     except Exception as e:
         print(f"Error fetching trending coins: {e}")
         trending_coins = []
@@ -360,3 +360,23 @@ def import_exchange():
         flash(f'Failed to import holdings: {e}', 'error')
 
     return redirect(url_for('settings'))
+
+@app.route('/chart_data/<coin_id>/<days>')
+def chart_data(coin_id, days):
+    try:
+        headers = {
+            "accept": "application/json",
+            "x-cg-demo-api-key": os.environ.get("COINGECKO_API_KEY", "")
+        }
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency=usd&days={days}"
+        response = requests.get(url, headers=headers, timeout=5)
+        data = response.json()
+        
+        prices = data.get('prices', [])
+        # Convert timestamps to a readable format if needed, but for Chart.js, raw timestamps are fine.
+        # The data is [timestamp, price]
+        return jsonify(prices)
+
+    except Exception as e:
+        print(f"Error fetching chart data for {coin_id}: {e}")
+        return jsonify([])

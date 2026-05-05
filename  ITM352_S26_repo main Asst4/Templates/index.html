@@ -142,15 +142,20 @@
     </div>
 
     <!-- Chart Modal -->
-    <div id="chartModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-        <div style="background: white; padding: 2rem; border-radius: 8px; width: 80%; max-width: 800px; position: relative;">
-            <span onclick="closeChartModal()" style="position: absolute; top: 10px; right: 20px; font-size: 24px; cursor: pointer;">&times;</span>
-            <h3 id="chartTitle" style="margin-top: 0;">Price History</h3>
-            <div id="widgetContainer"></div>
+    <div id="chartModal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.5);">
+        <div class="modal-content" style="background-color:#fefefe; margin:10% auto; padding:20px; border:1px solid #888; width:80%; max-width:700px; border-radius:8px;">
+            <span class="close" onclick="closeChartModal()" style="color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer;">&times;</span>
+            <h2 id="chart-modal-title"></h2>
+            <div>
+                <button onclick="updateChart(1)">24 hours</button>
+                <button onclick="updateChart(7)">7 days</button>
+            </div>
+            <canvas id="priceChart" width="400" height="200"></canvas>
         </div>
     </div>
 
     <script src="https://widgets.coingecko.com/coingecko-coin-price-chart-widget.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         function fetchLatestPrices() {
             fetch('/api/portfolio_data')
@@ -250,17 +255,61 @@
         });
 
         // --- Historical Trend Chart Functionality ---
-        function openChartModal(coinId, symbol) {
-            document.getElementById('chartModal').style.display = 'flex';
-            document.getElementById('chartTitle').innerText = `${symbol} Price History`;
-            
-            const container = document.getElementById('widgetContainer');
-            container.innerHTML = `<coingecko-coin-price-chart-widget coin-id="${coinId}" currency="usd" height="300" locale="en"></coingecko-coin-price-chart-widget>`;
+        let priceChart = null;
+        let currentCoinId = '';
+
+        function openChartModal(coinId, coinSymbol) {
+            currentCoinId = coinId;
+            document.getElementById('chart-modal-title').innerText = `Price Chart for ${coinSymbol}`;
+            document.getElementById('chartModal').style.display = 'block';
+            updateChart(1); // Default to 24 hours
         }
 
-        function closeChartModal() { 
-            document.getElementById('widgetContainer').innerHTML = ''; // Clean up widget when closed
-            document.getElementById('chartModal').style.display = 'none'; 
+        function closeChartModal() {
+            document.getElementById('chartModal').style.display = 'none';
+            if (priceChart) {
+                priceChart.destroy();
+            }
+        }
+
+        function updateChart(days) {
+            fetch(`/chart_data/${currentCoinId}/${days}`)
+                .then(response => response.json())
+                .then(data => {
+                    const ctx = document.getElementById('priceChart').getContext('2d');
+                    if (priceChart) {
+                        priceChart.destroy();
+                    }
+                    priceChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.map(item => new Date(item[0]).toLocaleString()),
+                            datasets: [{
+                                label: 'Price (USD)',
+                                data: data.map(item => item[1]),
+                                borderColor: 'rgb(75, 192, 192)',
+                                tension: 0.1
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                x: {
+                                    ticks: {
+                                        maxTicksLimit: 10
+                                    }
+                                }
+                            }
+                        }
+                    });
+                });
+        }
+
+        // Close modal if user clicks outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('chartModal');
+            if (event.target == modal) {
+                closeChartModal();
+            }
         }
     </script>
 {% endblock %}
