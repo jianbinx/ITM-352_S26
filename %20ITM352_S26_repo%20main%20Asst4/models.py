@@ -98,6 +98,24 @@ class PollVote(db.Model):
     poll_id = db.Column(db.Integer, db.ForeignKey('poll.id'), nullable=False)
     choice = db.Column(db.String(10), nullable=False) # 'yes' or 'no'
 
+# 7. ANALYTICS MODELS
+class PortfolioHistory(db.Model):
+    __table_args__ = {'extend_existing': True}
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    total_value = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+class TradeHistory(db.Model):
+    __table_args__ = {'extend_existing': True}
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    crypto_symbol = db.Column(db.String(10), nullable=False)
+    trade_type = db.Column(db.String(10), nullable=False) # 'BUY' or 'SELL'
+    amount = db.Column(db.Float, nullable=False)
+    price_usd = db.Column(db.Float, nullable=True)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
 # 6. APP SETTINGS MODEL
 class Settings(db.Model):
     id = db.Column(db.Integer, primary_key=True)

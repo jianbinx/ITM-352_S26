@@ -1,9 +1,18 @@
 # run.py
+import socket
+
+# Force Python to use IPv4 for all network requests to avoid IPv6 blocking issues with Binance
+old_getaddrinfo = socket.getaddrinfo
+def new_getaddrinfo(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    return [res for res in responses if res[0] == socket.AF_INET]
+socket.getaddrinfo = new_getaddrinfo
+
 import threading
 from __init__ import app, db
 import routes
 from models import User
-import hashlib
+from werkzeug.security import generate_password_hash
 from sync_engine import sync_crypto_prices
 from sqlalchemy import text
 
@@ -68,8 +77,8 @@ if __name__ == '__main__':
         # Create a default admin user if one doesn't exist
         admin_user = User.query.filter_by(username='admin').first()
         if not admin_user:
-            manual_hash = hashlib.sha256('admin123'.encode('utf-8')).hexdigest()
-            admin_user = User(username='admin', password_hash=manual_hash, is_admin=True)
+            secure_hash = generate_password_hash('admin123')
+            admin_user = User(username='admin', password_hash=secure_hash, is_admin=True)
             db.session.add(admin_user)
             db.session.commit()
         print("--- Database Tables Verified ---")
@@ -80,8 +89,9 @@ if __name__ == '__main__':
     # Explicitly print the access link for better visibility
     print("\n" + "="*40)
     print("  CRYPTO DASHBOARD ACTIVE")
-    print("  URL: http://127.0.0.1:5001")
+    print("  Local URL: http://127.0.0.1:5001")
+    print("  Network URL: http://0.0.0.0:5001")
     print("="*40 + "\n")
     
     # use_reloader=False prevents the background thread from starting twice
-    app.run(debug=True, use_reloader=False, port=5001)
+    app.run(host='0.0.0.0', debug=True, use_reloader=False, port=5001)

@@ -5,12 +5,28 @@ import requests
 from datetime import datetime, timezone
 import os
 from __init__ import app, db
-from models import Crypto, Poll, Settings, User, PortfolioItem, WatchlistItem, PredictionVote, PollVote
+from models import Crypto, Poll, Settings, User, PortfolioItem, WatchlistItem, PredictionVote, PollVote, PortfolioHistory, TradeHistory
 from security import encrypt_data, decrypt_data
 import ccxt
 import hashlib
 
 # --- HELPERS ---
+
+BINANCE_US_SUPPORTED_SYMBOLS = set()
+def get_binance_us_symbols():
+    """Fetches and caches supported base symbols from Binance US to filter searches."""
+    global BINANCE_US_SUPPORTED_SYMBOLS
+    if not BINANCE_US_SUPPORTED_SYMBOLS:
+        try:
+            exchange = ccxt.binanceus()
+            exchange.load_markets()
+            for market in exchange.symbols:
+                base = market.split('/')[0]
+                BINANCE_US_SUPPORTED_SYMBOLS.add(base.upper())
+            BINANCE_US_SUPPORTED_SYMBOLS.add('USD')
+        except Exception as e:
+            print(f"Failed to load Binance US markets for filtering: {e}")
+    return BINANCE_US_SUPPORTED_SYMBOLS
 
 def get_trending_coins(limit=3):
     """Returns a list of top trending coins from CoinGecko for the dashboard."""
@@ -238,19 +254,35 @@ def add_portfolio_item():
         return redirect(url_for('portfolio_index'))
 
     # Automatically resolve the exact CoinGecko ID (e.g., 'doge' -> 'dogecoin')
-    try:
-        url = f"https://api.coingecko.com/api/v3/search?query={coin_id}"
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        if data.get('coins') and len(data['coins']) > 0:
-            coin_id = data['coins'][0]['id']
-            coin_symbol = data['coins'][0]['symbol'].upper()
-        else:
-            flash(f"Could not find a coin matching '{coin_id}'.", 'error')
-            return redirect(url_for('portfolio_index'))
-    except Exception as e:
-        coin_symbol = coin_id.upper()
-        print(f"Search API error: {e}")
+    if coin_id == 'usd':
+        coin_symbol = 'USD'
+    else:
+        try:
+            url = f"https://api.coingecko.com/api/v3/search?query={coin_id}"
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            if data.get('coins') and len(data['coins']) > 0:
+                coin_id = data['coins'][0]['id']
+                coin_symbol = data['coins'][0]['symbol'].upper()
+            else:
+                flash(f"Could not find a coin matching '{coin_id}'.", 'error')
+                return redirect(url_for('portfolio_index'))
+        except Exception as e:
+            coin_symbol = coin_id.upper()
+            print(f"Search API error: {e}")
+            
+    # Reject and remove the coin from being added if it is not supported by Binance US
+    if coin_symbol != 'USD':
+        try:
+            exchange = ccxt.binanceus()
+            exchange.load_markets()
+            market_symbol_usd = f"{coin_symbol}/USD"
+            market_symbol_usdt = f"{coin_symbol}/USDT"
+            if market_symbol_usd not in exchange.symbols and market_symbol_usdt not in exchange.symbols:
+                flash(f"Error: The coin {coin_symbol} is not supported by Binance US.", 'error')
+                return redirect(url_for('portfolio_index'))
+        except Exception as e:
+            print(f"Failed to validate Binance US markets: {e}")
 
     # Check if we already have this coin by symbol (to prevent Unique Constraint crashes) or name
     crypto = Crypto.query.filter(Crypto.symbol.ilike(coin_symbol)).first()
@@ -277,6 +309,7 @@ def add_portfolio_item():
     else:
         new_item = PortfolioItem(user_id=user_id, crypto_id=crypto.id, amount_owned=amount, target_price=target_price, auto_trade_enabled=auto_trade_enabled, trade_amount=trade_amount)
         db.session.add(new_item)
+        db.session.add(TradeHistory(user_id=user_id, crypto_symbol=crypto.symbol, trade_type='BUY', amount=amount))
         flash(f'Added {crypto.name} to your portfolio.', 'success')
         
     db.session.commit()
@@ -341,17 +374,20 @@ def manual_trade():
         return redirect(url_for('portfolio_index'))
 
     # Automatically resolve the exact CoinGecko ID to get the symbol for the exchange
-    try:
-        url = f"https://api.coingecko.com/api/v3/search?query={coin_id}"
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        if data.get('coins') and len(data['coins']) > 0:
-            symbol = data['coins'][0]['symbol'].upper()
-        else:
+    if coin_id == 'usd':
+        symbol = 'USD'
+    else:
+        try:
+            url = f"https://api.coingecko.com/api/v3/search?query={coin_id}"
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            if data.get('coins') and len(data['coins']) > 0:
+                symbol = data['coins'][0]['symbol'].upper()
+            else:
+                symbol = coin_id.upper()
+        except Exception as e:
             symbol = coin_id.upper()
-    except Exception as e:
-        symbol = coin_id.upper()
-        print(f"Search API error: {e}")
+            print(f"Search API error: {e}")
 
     try:
         api_key = decrypt_data(user.encrypted_api_key)
@@ -365,15 +401,37 @@ def manual_trade():
         # NOTE: Binance US does not have a Sandbox mode. The global testnet blocks US IPs.
         # This is now connecting to the LIVE exchange.
         
-        market_symbol = f"{symbol}/USD"
+        # Dynamically load available markets from Binance US
+        exchange.load_markets()
         
+        market_symbol_usd = f"{symbol}/USD"
+        market_symbol_usdt = f"{symbol}/USDT"
+        
+        if market_symbol_usd in exchange.symbols:
+            market_symbol = market_symbol_usd
+        elif market_symbol_usdt in exchange.symbols:
+            market_symbol = market_symbol_usdt
+        else:
+            # Self-healing: Remove unsupported coin from the database entirely
+            crypto_to_remove = Crypto.query.filter(Crypto.symbol.ilike(symbol)).first()
+            if crypto_to_remove:
+                PortfolioItem.query.filter_by(crypto_id=crypto_to_remove.id).delete()
+                WatchlistItem.query.filter_by(crypto_id=crypto_to_remove.id).delete()
+                PredictionVote.query.filter_by(coin_symbol=crypto_to_remove.symbol).delete()
+                db.session.delete(crypto_to_remove)
+                db.session.commit()
+            raise ValueError(f"The coin {symbol} is not supported by Binance US. It has been completely removed from your account.")
+            
         if trade_type == 'BUY':
             order = exchange.create_market_buy_order(market_symbol, amount)
+            db.session.add(TradeHistory(user_id=user.id, crypto_symbol=symbol, trade_type='BUY', amount=amount))
         elif trade_type == 'SELL':
             order = exchange.create_market_sell_order(market_symbol, amount)
+            db.session.add(TradeHistory(user_id=user.id, crypto_symbol=symbol, trade_type='SELL', amount=amount))
         else:
             raise ValueError("Invalid trade type.")
             
+        db.session.commit()
         flash(f"Successfully executed {trade_type} order for {amount} {symbol}. Order ID: {order.get('id', 'N/A')}", "success")
         
     except Exception as e:
@@ -381,7 +439,11 @@ def manual_trade():
         if "MIN_NOTIONAL" in error_msg:
             flash("Trade failed: The total dollar value of this trade is too small. Binance US requires a minimum trade size (usually $10).", "error")
         elif "insufficient" in error_msg.lower() or "-2010" in error_msg:
-            flash("Trade failed: Insufficient funds! Note: If buying, 'Amount' is the number of COINS, not USD. Ensure you have enough USD fiat balance.", "error")
+            flash("Trade execution failed: You have insufficient funds.", "error")
+        elif "market_lot_size" in error_msg.lower() or "-1013" in error_msg:
+            flash("Trade execution failed: You do not have this coin.", "error")
+        elif "does not have market symbol" in error_msg.lower() or "not supported by binance" in error_msg.lower():
+            flash(f"Trade execution failed: The coin is not supported by Binance US.", "error")
         else:
             flash(f"Trade execution failed: {error_msg}", "error")
         
@@ -414,19 +476,35 @@ def add_watchlist_item():
         return redirect(url_for('portfolio_index'))
 
     # Automatically resolve the exact CoinGecko ID (e.g., 'doge' -> 'dogecoin')
-    try:
-        url = f"https://api.coingecko.com/api/v3/search?query={coin_id}"
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        if data.get('coins') and len(data['coins']) > 0:
-            coin_id = data['coins'][0]['id']
-            coin_symbol = data['coins'][0]['symbol'].upper()
-        else:
-            flash(f"Could not find a coin matching '{coin_id}'.", 'error')
-            return redirect(url_for('portfolio_index'))
-    except Exception as e:
-        coin_symbol = coin_id.upper()
-        print(f"Search API error: {e}")
+    if coin_id == 'usd':
+        coin_symbol = 'USD'
+    else:
+        try:
+            url = f"https://api.coingecko.com/api/v3/search?query={coin_id}"
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            if data.get('coins') and len(data['coins']) > 0:
+                coin_id = data['coins'][0]['id']
+                coin_symbol = data['coins'][0]['symbol'].upper()
+            else:
+                flash(f"Could not find a coin matching '{coin_id}'.", 'error')
+                return redirect(url_for('portfolio_index'))
+        except Exception as e:
+            coin_symbol = coin_id.upper()
+            print(f"Search API error: {e}")
+            
+    # Reject and remove the coin from being added if it is not supported by Binance US
+    if coin_symbol != 'USD':
+        try:
+            exchange = ccxt.binanceus()
+            exchange.load_markets()
+            market_symbol_usd = f"{coin_symbol}/USD"
+            market_symbol_usdt = f"{coin_symbol}/USDT"
+            if market_symbol_usd not in exchange.symbols and market_symbol_usdt not in exchange.symbols:
+                flash(f"Error: The coin {coin_symbol} is not supported by Binance US.", 'error')
+                return redirect(url_for('portfolio_index'))
+        except Exception as e:
+            print(f"Failed to validate Binance US markets: {e}")
 
     # Check if we already have this coin by symbol (to prevent Unique Constraint crashes) or name
     crypto = Crypto.query.filter(Crypto.symbol.ilike(coin_symbol)).first()
@@ -507,6 +585,12 @@ def portfolio_data():
     total_value = 0
     for item in portfolio_items:
         raw_price = item.crypto.price
+        
+        # Override price for Fiat USD
+        if item.crypto.symbol.upper() == 'USD':
+            raw_price = 1.0
+            item.crypto.change_24h = 0.0
+            
         holding_val = (raw_price or 0) * (item.amount_owned or 0)
         total_value += holding_val
         
@@ -536,6 +620,11 @@ def watchlist_data():
     for item in watchlist_items:
         raw_price = item.crypto.price
         
+        # Override price for Fiat USD
+        if item.crypto.symbol.upper() == 'USD':
+            raw_price = 1.0
+            item.crypto.change_24h = 0.0
+            
         data.append({
             'item_id': item.id,
             'symbol': item.crypto.symbol,
@@ -556,10 +645,51 @@ def search_coins():
     try:
         url = f"https://api.coingecko.com/api/v3/search?query={query}"
         response = requests.get(url, timeout=10)
-        return jsonify(response.json().get('coins', []))
+        data = response.json().get('coins', [])
+        
+        supported = get_binance_us_symbols()
+        if supported:
+            # Filter results so only Binance US compatible coins appear in the dropdown
+            data = [coin for coin in data if coin.get('symbol', '').upper() in supported]
+            
+        return jsonify(data)
     except Exception as e:
         print(f"Search error: {e}")
         return jsonify([]), 500
+
+@app.route('/api/chart_data')
+def chart_data():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+        
+    user_id = session['user_id']
+    config = Settings.query.first()
+    rate = get_currency_data(config.currency if config else 'USD')['rate']
+    
+    pf_history = PortfolioHistory.query.filter_by(user_id=user_id).order_by(PortfolioHistory.timestamp.asc()).all()
+    
+    # If no history exists yet, generate an initial snapshot instantly so the chart isn't blank
+    if not pf_history:
+        pf_items = PortfolioItem.query.filter_by(user_id=user_id).all()
+        total_val = sum(((1.0 if p.crypto.symbol.upper() == 'USD' else (p.crypto.price or 0)) * p.amount_owned) for p in pf_items)
+        if total_val > 0:
+            new_snap = PortfolioHistory(user_id=user_id, total_value=total_val)
+            db.session.add(new_snap)
+            db.session.commit()
+            pf_history = [new_snap]
+            
+    pf_labels = [h.timestamp.strftime('%m-%d %H:%M') for h in pf_history]
+    pf_values = [h.total_value * rate for h in pf_history]
+    
+    trades = TradeHistory.query.filter_by(user_id=user_id, trade_type='BUY').order_by(TradeHistory.timestamp.asc()).all()
+    trade_labels = [t.timestamp.strftime('%m-%d %H:%M') for t in trades]
+    trade_amounts = [t.amount for t in trades]
+    trade_symbols = [t.crypto_symbol for t in trades]
+    
+    return jsonify({
+        'portfolio': {'labels': pf_labels, 'values': pf_values},
+        'trades': {'labels': trade_labels, 'amounts': trade_amounts, 'symbols': trade_symbols}
+    })
 
 # --- PREDICTION MARKET API ---
 
@@ -643,20 +773,24 @@ def predictive_market(symbol):
     query = symbol.strip().lower()
     
     # Automatically resolve the exact CoinGecko ID and Symbol
-    try:
-        url = f"https://api.coingecko.com/api/v3/search?query={query}"
-        response = requests.get(url, timeout=10)
-        data = response.json()
-        if data.get('coins') and len(data['coins']) > 0:
-            resolved_id = data['coins'][0]['id']
-            resolved_symbol = data['coins'][0]['symbol'].upper()
-        else:
+    if query == 'usd':
+        resolved_id = 'usd'
+        resolved_symbol = 'USD'
+    else:
+        try:
+            url = f"https://api.coingecko.com/api/v3/search?query={query}"
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            if data.get('coins') and len(data['coins']) > 0:
+                resolved_id = data['coins'][0]['id']
+                resolved_symbol = data['coins'][0]['symbol'].upper()
+            else:
+                resolved_id = query
+                resolved_symbol = query.upper()
+        except Exception as e:
             resolved_id = query
             resolved_symbol = query.upper()
-    except Exception as e:
-        resolved_id = query
-        resolved_symbol = query.upper()
-        print(f"Search API error: {e}")
+            print(f"Search API error: {e}")
 
     # Check if we already have this coin by symbol or name
     crypto = Crypto.query.filter(Crypto.symbol.ilike(resolved_symbol)).first()
@@ -737,8 +871,8 @@ def register():
             flash('Username exists.', 'error')
             return redirect(url_for('register'))
         
-        manual_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
-        new_user = User(username=username, password_hash=manual_hash)
+        secure_hash = generate_password_hash(password)
+        new_user = User(username=username, password_hash=secure_hash)
         db.session.add(new_user)
         db.session.commit()
         return redirect(url_for('login'))
@@ -751,9 +885,8 @@ def login():
         password = request.form.get('password')
         
         user = User.query.filter_by(username=username).first()
-        entered_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
         
-        if user and user.password_hash == entered_hash:
+        if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
             session['username'] = user.username
             return redirect(url_for('portfolio_index'))
@@ -781,7 +914,8 @@ def import_exchange():
         cg_mapping = {
             'BTC': 'bitcoin', 'ETH': 'ethereum', 'DOGE': 'dogecoin', 
             'SOL': 'solana', 'ADA': 'cardano', 'USDT': 'tether',
-            'BNB': 'binancecoin', 'XRP': 'ripple', 'LTC': 'litecoin'
+            'BNB': 'binancecoin', 'XRP': 'ripple', 'LTC': 'litecoin',
+            'USD': 'usd'
         }
         try:
             cg_list = requests.get("https://api.coingecko.com/api/v3/coins/list", timeout=10).json()

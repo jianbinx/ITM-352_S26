@@ -7,7 +7,7 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime, timezone
 from __init__ import app, db
-from models import Crypto, PortfolioItem, WatchlistItem, User
+from models import Crypto, PortfolioItem, WatchlistItem, User, PredictionVote, PortfolioHistory, TradeHistory
 from security import decrypt_data
 from config import Config
 
@@ -89,9 +89,22 @@ def execute_auto_trade(user, crypto_symbol, amount, trade_type="SELL"):
         # NOTE: Binance US does not have a Sandbox mode. The global testnet blocks US IPs.
         # This is now connecting to the LIVE exchange.
         
-        # Trading against USD fiat directly
-        market_symbol = f"{crypto_symbol.upper()}/USD"
+        # Load available markets to ensure the coin is supported by Binance US
+        try:
+            exchange.load_markets()
+        except Exception as e:
+            return False, f"Failed to load exchange markets: {e}"
+            
+        market_symbol_usd = f"{crypto_symbol.upper()}/USD"
+        market_symbol_usdt = f"{crypto_symbol.upper()}/USDT"
         
+        if market_symbol_usd in exchange.symbols:
+            market_symbol = market_symbol_usd
+        elif market_symbol_usdt in exchange.symbols:
+            market_symbol = market_symbol_usdt
+        else:
+            return False, f"Trade failed: The coin {crypto_symbol.upper()} is not supported by Binance US."
+            
         if trade_type.upper() == "SELL":
             order = exchange.create_market_sell_order(market_symbol, amount)
         elif trade_type.upper() == "BUY":
@@ -106,7 +119,11 @@ def execute_auto_trade(user, crypto_symbol, amount, trade_type="SELL"):
         if "MIN_NOTIONAL" in error_msg:
             return False, "Trade failed: The total dollar value is below the Binance US minimum (usually $10)."
         elif "insufficient" in error_msg.lower() or "-2010" in error_msg:
-            return False, "Trade failed: Insufficient funds! Ensure you hold enough USD (if buying) or enough crypto (if selling)."
+            return False, "Trade execution failed: You have insufficient funds."
+        elif "market_lot_size" in error_msg.lower() or "-1013" in error_msg:
+            return False, "Trade failed: You do not have this coin."
+        elif "does not have market symbol" in error_msg.lower() or "not supported by binance" in error_msg.lower():
+            return False, "Trade failed: The coin is not supported by Binance US."
         return False, f"Trade execution failed: {error_msg}"
 
 # THE BACKGROUND WORKER
@@ -149,6 +166,27 @@ def sync_crypto_prices():
                             crypto_map[coin_id].change_24h = price_info.get('usd_24h_change')
                             crypto_map[coin_id].last_updated = datetime.now(timezone.utc)
                     
+                    # Force fiat USD to always remain at $1
+                    if 'usd' in crypto_map:
+                        crypto_map['usd'].price = 1.0
+                        crypto_map['usd'].change_24h = 0.0
+                        crypto_map['usd'].last_updated = datetime.now(timezone.utc)
+                    
+                    db.session.commit()
+                    
+                    # Take Portfolio Snapshots for analytics
+                    users = User.query.all()
+                    for u in users:
+                        pf_items = PortfolioItem.query.filter_by(user_id=u.id).all()
+                        if not pf_items: continue
+                        
+                        total_val = sum(((1.0 if p.crypto.symbol.upper() == 'USD' else (p.crypto.price or 0)) * p.amount_owned) for p in pf_items)
+                        if total_val > 0:
+                            last_snap = PortfolioHistory.query.filter_by(user_id=u.id).order_by(PortfolioHistory.timestamp.desc()).first()
+                            # Snapshot if no previous snapshot or > 1 hour has passed
+                            if not last_snap or (datetime.now(timezone.utc) - last_snap.timestamp.replace(tzinfo=timezone.utc)).total_seconds() > 60:
+                                db.session.add(PortfolioHistory(user_id=u.id, total_value=total_val))
+                                
                     db.session.commit()
                 
                 # Check for smart alerts
@@ -160,6 +198,7 @@ def sync_crypto_prices():
                         if item.crypto.price >= item.target_price:
                             alert_msg = f"🎯 TARGET HIT: {item.crypto.name} reached your target of ${item.target_price}! Current price: ${item.crypto.price}"
                             
+                            is_unsupported = False
                             # Trigger Auto-Trading if user has configured an API Key and actually owns some
                             if item.auto_trade_enabled and item.amount_owned > 0 and item.user.encrypted_api_secret:
                                 # Safely default to selling all if no specific amount was configured prior to this update
@@ -168,13 +207,30 @@ def sync_crypto_prices():
                                     success, trade_msg = execute_auto_trade(item.user, item.crypto.symbol, sell_amt, "SELL")
                                     alert_msg += f" | 🤖 AUTO-TRADE: {trade_msg}"
                                     if success:
+                                        db.session.add(TradeHistory(user_id=item.user_id, crypto_symbol=item.crypto.symbol, trade_type='SELL', amount=sell_amt))
                                         item.amount_owned -= sell_amt  # Subtract sold amount
                                         item.auto_trade_enabled = False # Turn off auto-trade after execution
+                                    else:
+                                        if "not supported by binance" in trade_msg.lower():
+                                            is_unsupported = True
+                                        else:
+                                            item.auto_trade_enabled = False
                                 else:
                                     alert_msg += f" | 🤖 AUTO-TRADE FAILED: Insufficient portfolio holding to sell {sell_amt} coins."
                                     item.auto_trade_enabled = False
                                     
                             log_alert(item.user_id, alert_msg)
+                            
+                            if is_unsupported:
+                                crypto_id_to_remove = item.crypto_id
+                                crypto_sym_to_remove = item.crypto.symbol
+                                PortfolioItem.query.filter_by(crypto_id=crypto_id_to_remove).delete()
+                                WatchlistItem.query.filter_by(crypto_id=crypto_id_to_remove).delete()
+                                PredictionVote.query.filter_by(coin_symbol=crypto_sym_to_remove).delete()
+                                Crypto.query.filter_by(id=crypto_id_to_remove).delete()
+                                alerts_triggered = True
+                                continue
+                                
                             item.target_price = None  # Clear the target so it doesn't spam
                             alerts_triggered = True
                             
@@ -184,18 +240,34 @@ def sync_crypto_prices():
                         if item.auto_trade_enabled and item.crypto.price <= item.target_price:
                             alert_msg = f"🎯 WATCHLIST AUTO-BUY TRIGGERED: {item.crypto.name} dropped to ${item.crypto.price} (Target: ${item.target_price})"
                             
+                            is_unsupported = False
                             if item.trade_amount > 0 and item.user.encrypted_api_secret:
                                 success, trade_msg = execute_auto_trade(item.user, item.crypto.symbol, item.trade_amount, "BUY")
                                 alert_msg += f" | 🤖 {trade_msg}"
                                 if success:
+                                    db.session.add(TradeHistory(user_id=item.user_id, crypto_symbol=item.crypto.symbol, trade_type='BUY', amount=item.trade_amount))
                                     # Add to portfolio automatically!
                                     pf_item = PortfolioItem.query.filter_by(user_id=item.user_id, crypto_id=item.crypto_id).first()
                                     if pf_item:
                                         pf_item.amount_owned += item.trade_amount
                                     else:
                                         db.session.add(PortfolioItem(user_id=item.user_id, crypto_id=item.crypto_id, amount_owned=item.trade_amount))
+                                else:
+                                    if "not supported by binance" in trade_msg.lower():
+                                        is_unsupported = True
                             
                             log_alert(item.user_id, alert_msg)
+                            
+                            if is_unsupported:
+                                crypto_id_to_remove = item.crypto_id
+                                crypto_sym_to_remove = item.crypto.symbol
+                                PortfolioItem.query.filter_by(crypto_id=crypto_id_to_remove).delete()
+                                WatchlistItem.query.filter_by(crypto_id=crypto_id_to_remove).delete()
+                                PredictionVote.query.filter_by(coin_symbol=crypto_sym_to_remove).delete()
+                                Crypto.query.filter_by(id=crypto_id_to_remove).delete()
+                                alerts_triggered = True
+                                continue
+                                
                             item.target_price = None
                             item.auto_trade_enabled = False
                             alerts_triggered = True
@@ -214,6 +286,7 @@ def sync_crypto_prices():
                     print(f"[{datetime.now().strftime('%H:%M:%S')}] Successfully synced {len(data)} cryptocurrency prices.")
                 
             except Exception as e:
+                db.session.rollback()
                 print(f"Error occurred during sync: {e}")
             
             time.sleep(10)  # Wait for 10 seconds before syncing again
