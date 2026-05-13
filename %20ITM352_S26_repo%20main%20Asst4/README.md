@@ -6,9 +6,12 @@ A comprehensive, Flask-based cryptocurrency portfolio tracker, watchlist, and au
 - **Live Portfolio & Watchlist:** Track your crypto holdings and prospective coins with real-time price, 24h change, and market cap updates.
 - **Smart Auto-Trading:** Configure "Auto-Buy" (buy the dip) and "Auto-Sell" (take profit) targets with customizable trade amounts. The background engine will execute live trades via Binance US when targets are hit.
 - **Quick Trade UI:** Execute manual trades instantly with a built-in live USD cost calculator.
-- **Military-Grade Security:** User API keys and secrets are encrypted using AES-128 (Fernet) before being saved to the database.
+- **Advanced Analytics & Charts:** Visualize your total portfolio value over time and track your cryptocurrency purchase history using interactive Chart.js graphs.
+- **Market Filtering & Self-Healing:** Automatically validates search results against live Binance US markets to prevent unsupported trades, and features auto-cleanup logic for legacy database errors.
+- **Military-Grade Security:** User API keys and secrets are encrypted using AES-128 (Fernet) before being saved to the database. User passwords are cryptographically salted and hashed.
 - **Smart Alerts:** Receive audio chimes and automated email notifications (with built-in test diagnostic tools) when trades execute or prices hit your targets.
 - **Prediction Markets:** Participate in global crypto prediction polls powered by the Manifold Markets API.
+- **Network Stability:** Automatically forces IPv4 routing internally to prevent common IPv6 connection-drop issues with the Binance API.
 - **Admin Dashboard:** A secure administrative panel to view and manage registered users.
 
 ## Installation & Setup
