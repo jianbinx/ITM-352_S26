@@ -1,0 +1,32 @@
+[
+    {
+        "timestamp": "2026-05-13 02:08:55 UTC",
+        "user_id": 5,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.110958 | \ud83e\udd16 AUTO-TRADE: Successfully executed SELL order for 10.0 DOGE on Binance US. Order ID: 487367926"
+    },
+    {
+        "timestamp": "2026-05-13 02:08:32 UTC",
+        "user_id": 5,
+        "message": "\ud83c\udfaf WATCHLIST AUTO-BUY TRIGGERED: dogecoin dropped to $0.110963 (Target: $0.12) | \ud83e\udd16 Successfully executed BUY order for 11.0 DOGE on Binance US. Order ID: 487367870"
+    },
+    {
+        "timestamp": "2026-05-13 02:04:47 UTC",
+        "user_id": 5,
+        "message": "\ud83c\udfaf WATCHLIST AUTO-BUY TRIGGERED: dogecoin dropped to $0.111027 (Target: $0.12) | \ud83e\udd16 Successfully executed BUY order for 11.0 DOGE on Binance US. Order ID: 487367345"
+    },
+    {
+        "timestamp": "2026-05-13 01:54:16 UTC",
+        "user_id": 5,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.111348 | \ud83e\udd16 AUTO-TRADE: Successfully executed SELL order for 10.0 DOGE on Binance US. Order ID: 487365778"
+    },
+    {
+        "timestamp": "2026-05-13 01:38:32 UTC",
+        "user_id": 5,
+        "message": "\ud83c\udfaf WATCHLIST AUTO-BUY TRIGGERED: dogecoin dropped to $0.111667 (Target: $0.12) | \ud83e\udd16 Successfully executed BUY order for 10.0 DOGE on Binance US. Order ID: 487363453"
+    },
+    {
+        "timestamp": "2026-05-13 01:37:49 UTC",
+        "user_id": 5,
+        "message": "\ud83c\udfaf TARGET HIT: dogecoin reached your target of $0.1! Current price: $0.111667 | \ud83e\udd16 AUTO-TRADE: Successfully executed SELL order for 10.0 DOGE on Binance US. Order ID: 487363341"
+    }
+]

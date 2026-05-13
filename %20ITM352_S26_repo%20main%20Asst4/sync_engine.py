@@ -207,7 +207,7 @@ def sync_crypto_prices():
                                     success, trade_msg = execute_auto_trade(item.user, item.crypto.symbol, sell_amt, "SELL")
                                     alert_msg += f" | 🤖 AUTO-TRADE: {trade_msg}"
                                     if success:
-                                        db.session.add(TradeHistory(user_id=item.user_id, crypto_symbol=item.crypto.symbol, trade_type='SELL', amount=sell_amt))
+                                        db.session.add(TradeHistory(user_id=item.user_id, crypto_symbol=item.crypto.symbol, trade_type='SELL', amount=sell_amt, price_usd=item.crypto.price))
                                         item.amount_owned -= sell_amt  # Subtract sold amount
                                         item.auto_trade_enabled = False # Turn off auto-trade after execution
                                     else:
@@ -245,7 +245,7 @@ def sync_crypto_prices():
                                 success, trade_msg = execute_auto_trade(item.user, item.crypto.symbol, item.trade_amount, "BUY")
                                 alert_msg += f" | 🤖 {trade_msg}"
                                 if success:
-                                    db.session.add(TradeHistory(user_id=item.user_id, crypto_symbol=item.crypto.symbol, trade_type='BUY', amount=item.trade_amount))
+                                    db.session.add(TradeHistory(user_id=item.user_id, crypto_symbol=item.crypto.symbol, trade_type='BUY', amount=item.trade_amount, price_usd=item.crypto.price))
                                     # Add to portfolio automatically!
                                     pf_item = PortfolioItem.query.filter_by(user_id=item.user_id, crypto_id=item.crypto_id).first()
                                     if pf_item:

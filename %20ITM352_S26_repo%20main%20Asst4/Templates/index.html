@@ -45,7 +45,7 @@
             </div>
         </div>
         <div style="flex: 1; min-width: 300px; background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h3 style="margin-top: 0; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">Coins Purchased Over Time</h3>
+            <h3 style="margin-top: 0; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px;">Trade Value Over Time</h3>
             <div style="position: relative; height: 250px; width: 100%;">
                 <canvas id="tradeChart"></canvas>
             </div>
@@ -595,7 +595,7 @@
                         data: {
                             labels: data.trades.labels,
                             datasets: [{
-                                label: 'Amount Purchased',
+                                label: 'Trade Value (' + currencySymbol + ')',
                                 data: data.trades.amounts,
                                 backgroundColor: '#007bff'
                             }]

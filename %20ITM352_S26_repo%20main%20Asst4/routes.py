@@ -309,7 +309,7 @@ def add_portfolio_item():
     else:
         new_item = PortfolioItem(user_id=user_id, crypto_id=crypto.id, amount_owned=amount, target_price=target_price, auto_trade_enabled=auto_trade_enabled, trade_amount=trade_amount)
         db.session.add(new_item)
-        db.session.add(TradeHistory(user_id=user_id, crypto_symbol=crypto.symbol, trade_type='BUY', amount=amount))
+        db.session.add(TradeHistory(user_id=user_id, crypto_symbol=crypto.symbol, trade_type='BUY', amount=amount, price_usd=crypto.price))
         flash(f'Added {crypto.name} to your portfolio.', 'success')
         
     db.session.commit()
@@ -422,12 +422,15 @@ def manual_trade():
                 db.session.commit()
             raise ValueError(f"The coin {symbol} is not supported by Binance US. It has been completely removed from your account.")
             
+        crypto_obj = Crypto.query.filter(Crypto.symbol.ilike(symbol)).first()
+        trade_price = crypto_obj.price if crypto_obj else None
+            
         if trade_type == 'BUY':
             order = exchange.create_market_buy_order(market_symbol, amount)
-            db.session.add(TradeHistory(user_id=user.id, crypto_symbol=symbol, trade_type='BUY', amount=amount))
+            db.session.add(TradeHistory(user_id=user.id, crypto_symbol=symbol, trade_type='BUY', amount=amount, price_usd=trade_price))
         elif trade_type == 'SELL':
             order = exchange.create_market_sell_order(market_symbol, amount)
-            db.session.add(TradeHistory(user_id=user.id, crypto_symbol=symbol, trade_type='SELL', amount=amount))
+            db.session.add(TradeHistory(user_id=user.id, crypto_symbol=symbol, trade_type='SELL', amount=amount, price_usd=trade_price))
         else:
             raise ValueError("Invalid trade type.")
             
@@ -683,7 +686,15 @@ def chart_data():
     
     trades = TradeHistory.query.filter_by(user_id=user_id, trade_type='BUY').order_by(TradeHistory.timestamp.asc()).all()
     trade_labels = [t.timestamp.strftime('%m-%d %H:%M') for t in trades]
-    trade_amounts = [t.amount for t in trades]
+    
+    trade_amounts = []
+    for t in trades:
+        if t.price_usd is not None:
+            trade_amounts.append((t.amount * t.price_usd) * rate)
+        else:
+            c = Crypto.query.filter_by(symbol=t.crypto_symbol).first()
+            trade_amounts.append((t.amount * (c.price if c and c.price else 0)) * rate)
+            
     trade_symbols = [t.crypto_symbol for t in trades]
     
     return jsonify({
@@ -901,6 +912,7 @@ def import_exchange():
 
     user = User.query.get(session['user_id'])
     if not user.encrypted_api_key or not user.encrypted_api_secret:
+        flash("Error: You must save both your API Key and API Secret before importing.", "error")
         return redirect(url_for('settings'))
 
     api_key = decrypt_data(user.encrypted_api_key)

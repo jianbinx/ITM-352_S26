@@ -1,7 +1,12 @@
+# Web Server & Database
 Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
-python-dotenv==1.0.1
-cryptography==42.0.5
+Werkzeug==3.0.1
+
+# APIs & Networking
 ccxt==4.2.59
 requests==2.31.0
-Werkzeug==3.0.1
+
+# Security & Configuration
+cryptography==42.0.5
+python-dotenv==1.0.1
